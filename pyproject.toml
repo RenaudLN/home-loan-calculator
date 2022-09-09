@@ -1,0 +1,64 @@
+[project]
+name = "home-loan-calculator"
+version = "0.1.0"
+description = "A one line description"
+authors = [
+    {name = "Renaud Laine", email = "renaudlaine31@gmail.com"},
+]
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "dash",
+    "gunicorn",
+    "enea_appshell",
+    "dash_mantine_components",
+    "dash_iconify",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+]
+
+[project.urls]
+Source= "https://bitbucket.org/enea-c/sample-dash-app"
+
+[build-system]
+build-backend = "flit_core.buildapi"
+requires = ["flit_core >=3.2,<4"]
+
+[tool.flit.module]
+name = "loan_calculator"
+
+[tool.black]
+line-length = 120
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | docs
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pylint.MASTER]
+ignore = ["*.ipynb","docs"]
+
+[tool.pylint.'MESSAGES CONTROL']
+disable=["import-error", "duplicate-code", "fixme", "missing-module-docstring", "too-few-public-methods"]
+
+[tool.pylint.REPORTS]
+reports = false
+
+[tool.pylint.BASIC]
+function-rgx = "[a-z_][a-z0-9_]{1,36}$"
+variable-rgx = "[a-z_][a-z0-9_]{1,36}$"
+variable-name-hint = "[a-z_][a-z0-9_]{1,36}$"
+argument-rgx = "[a-z_][a-z0-9_]{1,36}$"
+const-rgx="[a-zA-Z_][a-zA-Z0-9_]{1,36}$"
+
+[tool.pylint.FORMAT]
+max-line-length=120
