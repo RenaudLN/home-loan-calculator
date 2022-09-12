@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import List, Literal, Tuple, Union
 
 import dash_mantine_components as dmc
-import pkg_resources
 from dash import ALL, MATCH, Input, Output, State, clientside_callback, dcc, html
 from dash.development.base_component import Component
 from dash_iconify import DashIconify
@@ -212,13 +211,12 @@ class AppshellAIO(dmc.MantineProvider):
             class_name="menu-drawer",
         )
 
-    def create_header(
+    def create_header(  # pylint: disable = too-many-arguments
         self,
         app_title: str,
         home_pathname: str,
         with_logo: bool,
-        header_slot: Union[Component,
-        List[Component]],
+        header_slot: Union[Component, List[Component]],
         has_mobile_drawer: bool,
     ) -> Component:
         """Create the app's header

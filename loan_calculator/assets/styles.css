@@ -150,7 +150,7 @@ body[data-theme="dark"] .sidebar-slot {
 
 .content-wrapper {
     min-height: calc(100vh - 64px);
-    padding: 1.5rem 1rem;
+    padding: 0.5rem 1rem;
 }
 
 .menu-drawer {
@@ -251,4 +251,9 @@ body[data-theme="dark"] .sidebar-slot {
 }
 .mantine-Drawer-drawer.bottom-aligned-drawer > .mantine-Drawer-header {
     margin: 0;
+}
+#offers_wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
 }
