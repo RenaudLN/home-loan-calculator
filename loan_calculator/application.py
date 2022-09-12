@@ -1,6 +1,5 @@
 from dash import Dash
 
-from loan_calculator import loan_modal
 from loan_calculator.aio_appshell import AppshellAIO
 
 app = Dash(
@@ -17,7 +16,7 @@ app.scripts.config.serve_locally = True
 server = app.server
 
 
-appshell = AppshellAIO("Loan Calculator", additional_themed_content=[loan_modal.layout()])
+appshell = AppshellAIO("Loan Calculator")
 
 app.layout = appshell
 

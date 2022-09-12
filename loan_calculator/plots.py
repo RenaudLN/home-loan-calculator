@@ -1,5 +1,6 @@
 from typing import List
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -99,14 +100,13 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data["stamp_duty"].cumsum(),
+                y=data["stamp_duty"].cumsum() if has_stamp_duty else [np.nan] * len(data),
                 name="Stamp Duty",
                 stackgroup="cumulative",
                 legendgroup="deposit",
                 showlegend=i == 1,
                 line=dict(color=COLOR_STAMP_DUTY),
                 hovertemplate="$%{y:.3s}",
-                visible=has_stamp_duty or "legendonly",
             ),
             row=1,
             col=i,
@@ -128,14 +128,13 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data["fee"].cumsum(),
+                y=data["fee"].cumsum() if has_fees else [np.nan] * len(data),
                 name="Fees",
                 stackgroup="cumulative",
                 legendgroup="fees",
                 showlegend=i == 1,
                 line=dict(color=COLOR_FEE),
                 hovertemplate="$%{y:.3s}",
-                visible=has_fees or "legendonly",
             ),
             row=1,
             col=i,
@@ -157,13 +156,12 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data["offset"].where(data["interest"] > 0, None).ffill(),
+                y=data["offset"].where(data["interest"] > 0, None).ffill() if has_offset else [np.nan] * len(data),
                 name="Offset Balance",
                 legendgroup="cumulative",
                 showlegend=i == 1,
                 line=dict(color=COLOR_OFFSET),
                 hovertemplate="$%{y:.3s}",
-                visible=has_offset or "legendonly",
             ),
             row=1,
             col=i,
@@ -201,14 +199,13 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=data["fee"],
+                y=data["fee"] if has_fees else [np.nan] * len(data),
                 name="Fees",
                 stackgroup="monthly",
                 legendgroup="fees",
                 showlegend=False,
                 line=dict(color=COLOR_FEE),
                 hovertemplate="$%{y:.3s}",
-                visible=has_fees or "legendonly",
             ),
             row=2,
             col=i,

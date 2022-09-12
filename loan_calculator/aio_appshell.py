@@ -230,42 +230,47 @@ class AppshellAIO(dmc.MantineProvider):
             height=64,
             p="md",
             style={"flex": "0 0 auto"},
-            children=[
-                dcc.Link(
-                    [html.Div(id=self.ids.header_logo)] * int(with_logo)
-                    + [dmc.Text(app_title, size="xl", color="gray")],
-                    href=home_pathname,
-                    style={
-                        "textDecoration": "none",
-                        "display": "flex",
-                        "alignItems": "center",
-                        "gap": "0.25rem",
-                    },
-                ),
-                html.Div(
-                    style={"display": "flex", "alignItems": "center", "gap": "1rem"},
-                    children=[
-                        dmc.MediaQuery(
-                            html.Div(header_slot, className="header-slot"), smallerThan=800, styles={"display": "none"}
-                        )
-                    ]
-                    + [
-                        dmc.MediaQuery(
-                            dmc.Button(
-                                DashIconify(icon="eva:menu-fill", height=28),
-                                variant="subtle",
-                                style={"padding": 0, "height": 30},
-                                id=self.ids.header_overflow_menu,
+            children=html.Div(
+                [
+                    dcc.Link(
+                        [html.Div(id=self.ids.header_logo)] * int(with_logo)
+                        + [dmc.Text(app_title, size="xl", color="gray")],
+                        href=home_pathname,
+                        style={
+                            "textDecoration": "none",
+                            "display": "flex",
+                            "alignItems": "center",
+                            "gap": "0.25rem",
+                        },
+                    ),
+                    html.Div(
+                        style={"display": "flex", "alignItems": "center", "gap": "1rem"},
+                        children=[
+                            dmc.MediaQuery(
+                                html.Div(header_slot, className="header-slot"),
+                                smallerThan=800,
+                                styles={"display": "none"},
+                            )
+                        ]
+                        + [
+                            dmc.MediaQuery(
+                                dmc.Button(
+                                    DashIconify(icon="eva:menu-fill", height=28),
+                                    variant="subtle",
+                                    style={"padding": 0, "height": 30},
+                                    id=self.ids.header_overflow_menu,
+                                ),
+                                largerThan=800,
+                                styles={"display": "none !important"},
+                                class_name="header-slot",
                             ),
-                            largerThan=800,
-                            styles={"display": "none !important"},
-                            class_name="header-slot",
-                        ),
-                    ]
-                    * int(has_mobile_drawer)
-                    + [dmc.ThemeSwitcher(id=self.ids.theme_toggle, style={"cursor": "pointer"})],
-                ),
-            ],
+                        ]
+                        * int(has_mobile_drawer)
+                        + [dmc.ThemeSwitcher(id=self.ids.theme_toggle, style={"cursor": "pointer"})],
+                    ),
+                ],
+                id="header_wrapper",
+            ),
         )
 
     def navbar_link(self, page_link: PageLink) -> Component:

@@ -19,14 +19,14 @@ body[data-theme="dark"] {
 #header-logo {
     width: 40px;
     height: 40px;
-    margin-right: 0.375rem;
-    background-image: url("assets/logo-light-theme.svg");
+    margin-right: 0.5rem;
+    background-image: url("logo-light-theme.png");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
 }
 body[data-theme="dark"] #header-logo {
-    background-image: url("assets/logo-dark-theme.svg");
+    background-image: url("logo-dark-theme.png");
 }
 
 /* Sidebar links styling */
@@ -135,7 +135,6 @@ body[data-theme="dark"] .sidebar-slot {
 
 /* Make Mantine header a flex component with space-between to position objects left and right */
 .mantine-Header-root {
-    padding: 0 1rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -143,9 +142,18 @@ body[data-theme="dark"] .sidebar-slot {
 
 /* Ensure the `pages` content takes up at least the whole remaining space so that the pages loader can be shown properly */
 #_pages_content {
-    /* max-width: 1200px; */
+    max-width: 1400px;
     margin: 0 auto;
     position: relative;
+}
+
+#header_wrapper {
+    flex: 1;
+    max-width: 1400px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 auto;
 }
 
 .content-wrapper {

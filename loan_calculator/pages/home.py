@@ -3,7 +3,6 @@ from dash import ALL, Input, Output, State, callback, clientside_callback, ctx, 
 from dash_iconify import DashIconify
 
 from loan_calculator import analytics, loan_modal, plots
-from loan_calculator.aio_appshell import synchronise_boolean_function
 
 register_page(__name__, "/", title="Loan Calculator")
 
@@ -52,10 +51,11 @@ def layout():
                         children=offers_comparison(),
                     ),
                 ],
-                style={"flex": "1"},
+                style={"flex": "1", "maxWidth": "1100px", "margin": "0 auto"},
             ),
             dcc.Store(id=ids.loans, storage_type="local"),
             html.Button(style={"display": "none"}, id=ids.trigger),
+            loan_modal.layout(),
         ],
         style={"display": "flex", "gap": "0.25rem"},
     )
@@ -213,7 +213,7 @@ def no_offers_grid_contents():
 def offers_comparison():
     """Content of second tab with results graph"""
     return [
-        dmc.MultiSelect(id=ids.select, maxSelectedValues=3, persistence=True),
+        dmc.MultiSelect(id=ids.select, maxSelectedValues=4, persistence=True),
         dmc.Space(h="md"),
         html.Div(
             dmc.Paper(
@@ -237,7 +237,6 @@ def offers_comparison():
 clientside_callback(
     """function(n_clicks, deletes, loans) {
         const ctx = dash_clientside.callback_context
-        console.log(ctx.triggered)
         if (ctx.triggered.length === 0 || !ctx.triggered[0].value) return dash_clientside.no_update
         const { type, name } = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
         if (type === "delete-offer") {
@@ -259,10 +258,16 @@ clientside_callback(
 )
 
 clientside_callback(
-    synchronise_boolean_function,
+    """function(a, b, c, opened) {
+        const ctx = window.dash_clientside.callback_context
+        if (ctx.triggered.length === 0 || !ctx.triggered[0].value) return window.dash_clientside.no_update
+        return !opened
+    }""",
     Output(loan_modal.ids.modal, "opened"),
     Input(ids.new_loan_button, "n_clicks"),
     Input(ids.edit_offer(ALL), "n_clicks"),
+    Input(loan_modal.ids.save(ALL), "n_clicks"),
+    State(loan_modal.ids.modal, "opened"),
 )
 
 
