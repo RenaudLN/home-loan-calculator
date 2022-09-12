@@ -1,10 +1,10 @@
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
 
-def get_loan_data(loan: dict) -> Optional[pd.DataFrame]:
+def get_loan_data(loan: dict) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
     """Ensure all the required data is present then compute the loan timeseries"""
     start_date = loan.get("settlement_date")
     property_value = loan.get("property_value")
@@ -33,7 +33,7 @@ def get_loan_data(loan: dict) -> Optional[pd.DataFrame]:
             start_date is not None,
         ]
     ):
-        return None
+        return None, None
 
     return compute_loan_timeseries(**loan)
 
@@ -51,7 +51,7 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     yearly_fees: float,
     settlement_date: Union[str, pd.Timestamp],
     **kwargs,
-):
+) -> Tuple[pd.DataFrame, bool]:
     """Compute the loan timeseries
 
     :param property_value: Property value in $
@@ -134,7 +134,9 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
             property_value * (stamp_duty_rate) / 100 if i == 0 else 0,
         ]
 
-    return data
+    feasible = start_capital >= property_value * (100 - borrowed_share + stamp_duty_rate) / 100
+
+    return data, feasible
 
 
 def compute_amortisation_payment(

@@ -338,17 +338,19 @@ def compute_loan(loans_names, project_params, loans_data):
     project_params = {inp["id"]["id"]: value for inp, value in zip(ctx.inputs_list[1], project_params)}
     data_list = []
     title_list = []
+    feasible_list = []
     for name in loans_names:
         loan = loans_data[name] | project_params
-        data = analytics.get_loan_data(loan)
+        data, feasible = analytics.get_loan_data(loan)
         if data is not None:
             data_list.append(data)
             title_list.append(name)
+            feasible_list.append(feasible)
 
     if not data_list:
         return no_update
 
-    fig = plots.make_comparison_figure(data_list, title_list)
+    fig = plots.make_comparison_figure(data_list, title_list, feasible_list)
     return dcc.Graph(figure=fig, responsive=True, config={"displayModeBar": False})
 
 

@@ -14,7 +14,7 @@ COLOR_OFFSET = "rgb(32, 201, 151)"
 
 
 def make_comparison_figure(  # pylint: disable = too-many-locals
-    data_list: List[pd.DataFrame], title_list: List[str] = None
+    data_list: List[pd.DataFrame], title_list: List[str] = None, feasible_list: List[bool] = None
 ) -> go.Figure:
     """Create a figure comparing several offers
 
@@ -249,7 +249,12 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
 
     # Add the traces titles
     title_list = title_list or []
-    for i, title in enumerate(title_list, 1):
+    for i, (title, feasible) in enumerate(zip(title_list, feasible_list), 1):
+        if feasible:
+            text = f"<b>{title}</b>"
+        else:
+            text = f"<b style='color: orangered;'>{title} (⚠ missing capital)</b>"
+
         fig.add_annotation(
             x=(i - 0.5) / len(data_list),
             xref="paper",
@@ -257,7 +262,7 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
             y=1.05,
             yref="paper",
             yanchor="bottom",
-            text=f"<b>{title}</b>",
+            text=text,
             showarrow=False,
         )
 
