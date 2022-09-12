@@ -75,16 +75,19 @@ def modal_content(name: str, **kwargs):
             ),
             dmc.NumberInput(
                 id=ids.yearly_fees(name),
-                value=kwargs.get("yearly_fees"),
+                value=kwargs.get("yearly_fees", 0),
                 min=0,
                 precision=2,
                 label="Yearly Fees ($ p.a.)",
             ),
-            dmc.Switch(
-                id=ids.with_offset_account(name),
-                checked=kwargs.get("with_offset_account"),
-                label="With Offset Account",
-                style={"marginTop": "0.5rem"},
+            html.Div(
+                dmc.Switch(
+                    id=ids.with_offset_account(name),
+                    checked=kwargs.get("with_offset_account", False),
+                    label="With Offset Account",
+                    style={"marginTop": "0.5rem"},
+                ),
+                style={"gridColumn": "1 / -1"},
             ),
             html.Div(
                 dmc.Button("Save", leftIcon=[DashIconify(icon="carbon:save", height=16)], id=ids.save(name)),

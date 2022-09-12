@@ -2,7 +2,8 @@ import dash_mantine_components as dmc
 from dash import ALL, Input, Output, State, callback, clientside_callback, ctx, dcc, html, no_update, register_page
 from dash_iconify import DashIconify
 
-from loan_calculator import analytics, loan_modal, plots
+from loan_calculator import analytics, delete_modal, loan_modal, plots
+from loan_calculator.components import number_input
 
 register_page(__name__, "/", title="Loan Calculator")
 
@@ -56,6 +57,7 @@ def layout():
             dcc.Store(id=ids.loans, storage_type="local"),
             html.Button(style={"display": "none"}, id=ids.trigger),
             loan_modal.layout(),
+            delete_modal.layout(),
         ],
         style={"display": "flex", "gap": "0.25rem"},
     )
@@ -65,45 +67,37 @@ def project_sidebar():
     """Sidebar with project-level data"""
     return html.Div(
         [
-            dmc.Text("My Project", weight="bold", style={"lineHeight": "40px"}),
+            dmc.Text("My Project", weight="bold", style={"lineHeight": "40px"}, size="sm"),
             html.Div(
                 [
-                    dmc.NumberInput(
+                    number_input(
+                        id=ids.property_value,
                         label="Property Value ($)",
                         min=0,
-                        step=10_000,
-                        precision=2,
-                        id=ids.property_value,
-                        value=600_000,
+                        persistence=True,
                     ),
                     dmc.Space(h="sm"),
-                    dmc.NumberInput(
+                    number_input(
+                        id=ids.start_capital,
                         label="Starting Capital ($)",
                         min=0,
-                        step=10_000,
-                        precision=2,
-                        id=ids.start_capital,
-                        value=150_000,
+                        persistence=True,
                     ),
                     dmc.Space(h="sm"),
-                    dmc.NumberInput(
-                        label="Monthly income ($)",
+                    number_input(
+                        id=ids.monthly_income,
+                        label="Monthly Income ($)",
                         description="After-tax income",
                         min=0,
-                        step=500,
-                        precision=2,
-                        id=ids.monthly_income,
-                        value=9_000,
+                        persistence=True,
                     ),
                     dmc.Space(h="sm"),
-                    dmc.NumberInput(
+                    number_input(
+                        id=ids.monthly_costs,
                         label="Monthly Costs ($)",
                         description="Excludes loan repayment",
                         min=0,
-                        step=500,
-                        precision=2,
-                        id=ids.monthly_costs,
-                        value=4_000,
+                        persistence=True,
                     ),
                     dmc.Space(h="sm"),
                     dmc.DatePicker(
@@ -111,15 +105,14 @@ def project_sidebar():
                         label="Settlement Date",
                         allowFreeInput=True,
                         value="2023-01-01",
+                        persistence=True,
                     ),
                     dmc.Space(h="sm"),
-                    dmc.NumberInput(
+                    number_input(
                         id=ids.stamp_duty_rate,
-                        min=0,
-                        step=1,
-                        precision=2,
                         label="Stamp Duty Rate (%)",
-                        value=5.5,
+                        min=0,
+                        persistence=True,
                     ),
                 ]
             ),
@@ -138,7 +131,7 @@ def offers_grid():
                     style={"flex": "1"},
                     icon=[DashIconify(icon="carbon:search")],
                 ),
-                dmc.Button("New Offers", leftIcon=[DashIconify(icon="carbon:add", height=16)], id=ids.new_loan_button),
+                dmc.Button("Add Offer", leftIcon=[DashIconify(icon="carbon:add", height=16)], id=ids.new_loan_button),
             ],
             style={"display": "flex", "alignItems": "center", "gap": "0.5rem"},
         ),
@@ -154,7 +147,7 @@ def offers_grid():
     ]
 
 
-def offers_grid_contents(loans_data: dict, search: str):
+def offers_grid_contents(loans_data: dict, search: str, property_value: float):
     """Offers cards to be displayed in the grid"""
     return [
         dmc.Paper(
@@ -162,7 +155,12 @@ def offers_grid_contents(loans_data: dict, search: str):
                 html.Div(
                     [
                         dmc.Text(name or "undefined", weight="bold"),
-                        dmc.Text(f"Annual rate: {loan.get('annual_rate', '')} % p.a.", size="sm", color="gray"),
+                        dmc.Text(
+                            f"Principal: ${(loan.get('borrowed_share') or 0) * (property_value or 0) / 100:,.0f}",
+                            size="sm",
+                            color="gray",
+                        ),
+                        dmc.Text(f"Annual rate: {loan.get('annual_rate', '')}% p.a.", size="sm", color="gray"),
                     ],
                     style={"flex": "1"},
                 ),
@@ -239,7 +237,7 @@ clientside_callback(
         const ctx = dash_clientside.callback_context
         if (ctx.triggered.length === 0 || !ctx.triggered[0].value) return dash_clientside.no_update
         const { type, name } = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
-        if (type === "delete-offer") {
+        if (type === "delete-button") {
             return Object.fromEntries(Object.entries(loans).filter(([n]) => n !== name))
         }
         const params = ctx.states_list[1].filter(s => s.id.name === name).map(s => [s.id.id, s.value])
@@ -251,11 +249,12 @@ clientside_callback(
     }""",
     Output(ids.loans, "data"),
     Input(loan_modal.ids.save(ALL), "n_clicks"),
-    Input(ids.delete_offer(ALL), "n_clicks"),
+    Input(delete_modal.ids.delete_button(ALL), "n_clicks"),
     State(ids.loans, "data"),
     State(loan_modal.loan_param(ALL, ALL), "value"),
     State(loan_modal.loan_boolean(ALL, ALL), "checked"),
 )
+
 
 clientside_callback(
     """function(a, b, c, opened) {
@@ -268,6 +267,21 @@ clientside_callback(
     Input(ids.edit_offer(ALL), "n_clicks"),
     Input(loan_modal.ids.save(ALL), "n_clicks"),
     State(loan_modal.ids.modal, "opened"),
+)
+
+
+clientside_callback(
+    """function(a, b, c, opened) {
+        const ctx = window.dash_clientside.callback_context
+        console.log(ctx)
+        if (ctx.triggered.length === 0 || !ctx.triggered[0].value) return window.dash_clientside.no_update
+        const {type} = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
+        if (type === "delete-offer") return true
+        return false
+    }""",
+    Output(delete_modal.ids.modal, "opened"),
+    Input(ids.delete_offer(ALL), "n_clicks"),
+    Input(delete_modal.ids.delete_button(ALL), "n_clicks"),
 )
 
 
@@ -289,12 +303,13 @@ clientside_callback(
     Output(ids.offers_wrapper, "children"),
     Input(ids.loans, "data"),
     Input(ids.search, "value"),
+    Input(ids.property_value, "value"),
 )
-def update_offers(loans_data, search):
+def update_offers(loans_data, search, property_value):
     """Update the content of the offers grid"""
     if not loans_data:
         return no_offers_grid_contents()
-    return offers_grid_contents(loans_data, search)
+    return offers_grid_contents(loans_data, search, property_value)
 
 
 @callback(
@@ -306,7 +321,19 @@ def update_offers(loans_data, search):
 def compute_loan(loans_names, project_params, loans_data):
     """Compute the loan results"""
     if not loans_data or not loans_names:
-        return no_update
+        return dmc.Paper(
+            dmc.Text(
+                "Create loan offers then select them above.",
+                color="gray",
+                size="xl",
+            ),
+            style={
+                "height": "min(400px, calc(90vh - 200px))",
+                "display": "grid",
+                "placeContent": "center",
+            },
+            radius="md",
+        )
 
     project_params = {inp["id"]["id"]: value for inp, value in zip(ctx.inputs_list[1], project_params)}
     data_list = []
@@ -332,7 +359,7 @@ def compute_loan(loans_names, project_params, loans_data):
     Input(ids.edit_offer(ALL), "n_clicks"),
     State(ids.loans, "data"),
 )
-def update_modal_content(new_trigger, edit_triggers, loans_data):  # pylint: disable = unused-argument
+def update_offer_modal_content(new_trigger, edit_triggers, loans_data):  # pylint: disable = unused-argument
     """Update the content of the offer modal"""
     if not ctx.triggered_id:
         return [no_update] * 2
@@ -344,3 +371,17 @@ def update_modal_content(new_trigger, edit_triggers, loans_data):  # pylint: dis
         name = "New Offer"
         loan_data = {"name": "__new__"}
     return [loan_modal.modal_content(**loan_data), name]
+
+
+@callback(
+    Output(delete_modal.ids.modal, "children"),
+    Output(delete_modal.ids.modal, "title"),
+    Input(ids.delete_offer(ALL), "n_clicks"),
+)
+def update_delete_modal_content(delete_trigger):  # pylint: disable = unused-argument
+    """Update the content of the offer modal"""
+    if not (ctx.triggered_id and ctx.triggered[0]["value"]):
+        return [None] * 2
+
+    name = ctx.triggered_id["name"]
+    return [delete_modal.modal_content(name), f"Delete {name}"]
