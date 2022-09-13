@@ -8,4 +8,4 @@ COPY . ./
 # Install package and its dependencies.
 RUN pip install --no-cache-dir .
 
-CMD gunicorn -b :8080 --workers 3 --timeout 0 loan_calculator.application:server
+CMD gunicorn --timeout 0 loan_calculator.application:server
