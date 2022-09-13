@@ -16,7 +16,7 @@ app.scripts.config.serve_locally = True
 server = app.server
 
 
-appshell = AppshellAIO("Loan Calculator")
+appshell = AppshellAIO("Loan Calculator", primary_color="teal")
 
 app.layout = appshell
 

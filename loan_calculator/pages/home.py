@@ -1,9 +1,12 @@
+from typing import Any, Dict, List
+
 import dash_mantine_components as dmc
+import pandas as pd
 from dash import ALL, Input, Output, State, callback, clientside_callback, ctx, dcc, html, no_update, register_page
 from dash_iconify import DashIconify
 
 from loan_calculator import analytics, delete_modal, loan_modal, plots
-from loan_calculator.components import number_input
+from loan_calculator.components import number_input, table, timeline_input_item
 
 register_page(__name__, "/", title="Loan Calculator")
 
@@ -23,6 +26,12 @@ class ids:  # pylint: disable = invalid-name
     monthly_costs = project_param("monthly_costs")
     start_date = project_param("settlement_date")
     stamp_duty_rate = project_param("stamp_duty_rate")
+    add_rates_change = "add_rates_change"
+    rates_timeline = "rates_timeline"
+    rates_changes = "rates_changes"
+    rates_change_date_item = lambda i: {"type": "rate-change-date-item", "order": i}
+    rates_change_value_item = lambda i: {"type": "rate-change-value-item", "order": i}
+    rates_change_delete_item = lambda i: {"type": "rate-change-delete-item", "order": i}
     # Loans
     new_loan_button = "new_loan_button"
     search = "search_loans"
@@ -41,31 +50,35 @@ def layout():
     return html.Div(
         [
             project_sidebar(),
-            dmc.Tabs(
-                children=[
-                    dmc.Tab(
-                        label="My Offers",
-                        children=offers_grid(),
-                    ),
-                    dmc.Tab(
-                        label="Offer Comparison",
-                        children=offers_comparison(),
-                    ),
-                ],
-                style={"flex": "1", "maxWidth": "1100px", "margin": "0 auto"},
+            dmc.ScrollArea(
+                dmc.Tabs(
+                    children=[
+                        dmc.Tab(
+                            label="My Offers",
+                            children=offers_grid(),
+                        ),
+                        dmc.Tab(
+                            label="Offer Comparison",
+                            children=offers_comparison(),
+                        ),
+                    ],
+                    style={"maxWidth": "1100px", "margin": "0 auto"},
+                ),
+                style={"flex": "1"},
             ),
             dcc.Store(id=ids.loans, storage_type="local"),
+            dcc.Store(id=ids.rates_changes, storage_type="local"),
             html.Button(style={"display": "none"}, id=ids.trigger),
             loan_modal.layout(),
             delete_modal.layout(),
         ],
-        style={"display": "flex", "gap": "0.25rem"},
+        style={"display": "flex", "gap": "0.25rem", "height": "calc(100vh - 80px)", "overflow": "hidden"},
     )
 
 
 def project_sidebar():
     """Sidebar with project-level data"""
-    return html.Div(
+    return dmc.ScrollArea(
         [
             dmc.Text("My Project", weight="bold", style={"lineHeight": "40px"}, size="sm"),
             html.Div(
@@ -114,10 +127,34 @@ def project_sidebar():
                         min=0,
                         persistence=True,
                     ),
+                    dmc.Space(h="sm"),
+                    dmc.Accordion(
+                        [
+                            dmc.AccordionItem(
+                                label="Interest rates projection",
+                                children=[
+                                    dmc.Text(
+                                        "Note: The rate changes should be relative to the current value.",
+                                        size="sm",
+                                        color="gray",
+                                    ),
+                                    dmc.Space(h="sm"),
+                                    dmc.Timeline(id=ids.rates_timeline),
+                                    dmc.Space(h="sm"),
+                                    dmc.Button(
+                                        "Add rate change",
+                                        compact=True,
+                                        id=ids.add_rates_change,
+                                    ),
+                                ],
+                            )
+                        ]
+                    ),
                 ]
             ),
         ],
-        style={"marginLeft": "-1rem", "minWidth": 300, "padding": "0 1rem"},
+        style={"marginLeft": "-1rem", "padding": "0 1rem", "flex": "0 0 300px"},
+        offsetScrollbars=False,
     )
 
 
@@ -155,11 +192,13 @@ def offers_grid_contents(loans_data: dict, search: str, property_value: float):
                 html.Div(
                     [
                         dmc.Text(name or "undefined", weight="bold"),
+                        dmc.Space(h=12),
                         dmc.Text(
                             f"Principal: ${(loan.get('borrowed_share') or 0) * (property_value or 0) / 100:,.0f}",
                             size="sm",
                             color="gray",
                         ),
+                        dmc.Space(h=3),
                         dmc.Text(f"Annual rate: {loan.get('annual_rate', '')}% p.a.", size="sm", color="gray"),
                     ],
                     style={"flex": "1"},
@@ -243,7 +282,6 @@ clientside_callback(
         const params = ctx.states_list[1].filter(s => s.id.name === name).map(s => [s.id.id, s.value])
         const booleans = ctx.states_list[2].filter(s => s.id.name === name).map(s => [s.id.id, s.value])
         const loan = Object.fromEntries(params.concat(booleans))
-        console.log(loan)
         if (!loans) return {[loan.name]: loan}
         return {...loans, [loan.name]: loan}
     }""",
@@ -273,9 +311,8 @@ clientside_callback(
 clientside_callback(
     """function(a, b, c, opened) {
         const ctx = window.dash_clientside.callback_context
-        console.log(ctx)
         if (ctx.triggered.length === 0 || !ctx.triggered[0].value) return window.dash_clientside.no_update
-        const {type} = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
+        const { type } = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
         if (type === "delete-offer") return true
         return false
     }""",
@@ -316,9 +353,10 @@ def update_offers(loans_data, search, property_value):
     Output(ids.comparison_wrapper, "children"),
     Input(ids.select, "value"),
     Input(project_param(ALL), "value"),
+    Input(ids.rates_changes, "data"),
     State(ids.loans, "data"),
 )
-def compute_loan(loans_names, project_params, loans_data):
+def compute_loan(loans_names: List[str], project_params: dict, rates_change: List[Dict[str, Any]], loans_data: dict):
     """Compute the loan results"""
     if not loans_data or not loans_names:
         return dmc.Paper(
@@ -336,12 +374,13 @@ def compute_loan(loans_names, project_params, loans_data):
         )
 
     project_params = {inp["id"]["id"]: value for inp, value in zip(ctx.inputs_list[1], project_params)}
+    rates_change = [rc for rc in (rates_change or []) if rc.get("date") and rc.get("change") is not None]
     data_list = []
     title_list = []
     feasible_list = []
     for name in loans_names:
         loan = loans_data[name] | project_params
-        data, feasible = analytics.get_loan_data(loan)
+        data, feasible = analytics.get_loan_data(loan, rates_change)
         if data is not None:
             data_list.append(data)
             title_list.append(name)
@@ -351,7 +390,44 @@ def compute_loan(loans_names, project_params, loans_data):
         return no_update
 
     fig = plots.make_comparison_figure(data_list, title_list, feasible_list)
-    return dcc.Graph(figure=fig, responsive=True, config={"displayModeBar": False})
+
+    table_data = (
+        pd.DataFrame(
+            [
+                [
+                    data[["principal_payment", "interest", "fee"]]
+                    .sum(axis=1)
+                    .to_frame("repayment")
+                    .query("repayment > 0")
+                    .mean()[0]
+                    for data in data_list
+                ],
+                [data[["interest", "fee"]].sum(axis=1).cumsum()[10 * 12] for data in data_list],
+                [
+                    (data["principal_paid"].iat[10 * 12] + data["deposit"].iat[0])
+                    / (data["principal_paid"].iat[-1] + data["deposit"].iat[0])
+                    * 100
+                    for data in data_list
+                ],
+                [data[["interest", "fee"]].sum(axis=1).cumsum()[-1] for data in data_list],
+            ],
+            columns=[title_list],
+            index=[
+                "Monthly Repayment",
+                "Interest & Fees paid @ year 10",
+                "Percent Owned @ year 10",
+                "Interest & Fees paid @ loan end",
+            ],
+        )
+        .T.apply(lambda s: s.apply(lambda x: f"{x:,.1f}%" if "Percent" in s.name else f"${x:,.0f}"))
+        .T.rename_axis(" ")
+        .reset_index()
+    )
+    return [
+        dmc.Paper(table(table_data, striped=True), px="sm", pt="sm"),
+        dmc.Space(h="md"),
+        dcc.Graph(figure=fig, responsive=True, config={"displayModeBar": False}),
+    ]
 
 
 @callback(
@@ -387,3 +463,76 @@ def update_delete_modal_content(delete_trigger):  # pylint: disable = unused-arg
 
     name = ctx.triggered_id["name"]
     return [delete_modal.modal_content(name), f"Delete {name}"]
+
+
+@callback(
+    Output(ids.rates_timeline, "children"),
+    Input(ids.rates_changes, "data"),
+    Input(ids.trigger, "n_clicks"),
+)
+def update_rates_timeline(rates_changes, trigger):  # pylint: disable = unused-argument
+    """Update the rates change timeline"""
+    if not rates_changes:
+        items = [
+            timeline_input_item(
+                date_id=ids.rates_change_date_item(i),
+                value_id=ids.rates_change_value_item(i),
+                delete_id=ids.rates_change_delete_item(i),
+                value_placeholder="Change",
+            )
+            for i in range(2)
+        ]
+    else:
+        items = [
+            timeline_input_item(
+                date_id=ids.rates_change_date_item(i),
+                value_id=ids.rates_change_value_item(i),
+                delete_id=ids.rates_change_delete_item(i),
+                value_placeholder="Change",
+                **change,
+            )
+            for i, change in enumerate(rates_changes)
+        ] + [
+            timeline_input_item(
+                date_id=ids.rates_change_date_item(1),
+                value_id=ids.rates_change_value_item(1),
+                delete_id=ids.rates_change_delete_item(1),
+                value_placeholder="Change",
+            )
+        ] * (
+            len(rates_changes) == 1
+        )
+
+    return items
+
+
+clientside_callback(
+    """function(dates, values, deletes, add, current) {
+        const ctx = window.dash_clientside.callback_context
+        const no_update = window.dash_clientside.no_update
+        if (ctx.triggered.length === 0 || ctx.triggered[0].value == null) {
+            return no_update
+        }
+        if (ctx.triggered[0].prop_id.includes("add")) {
+            return [...(current || [{date: null, change: null}]), {date: null, change: null}]
+        }
+        if (ctx.triggered[0].prop_id.includes("delete")) {
+            const { order } = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
+            return current.filter((x, i) => i !== order)
+        }
+        const latest = dates.map((d, i) => ({date: d, change: values[i]}))
+
+        window.console.log(latest)
+        if (JSON.stringify(current) === JSON.stringify(latest)) {
+            return no_update
+        }
+
+        return latest
+    }""",
+    Output(ids.rates_changes, "data"),
+    Input(ids.rates_change_date_item(ALL), "value"),
+    Input(ids.rates_change_value_item(ALL), "value"),
+    Input(ids.rates_change_delete_item(ALL), "n_clicks"),
+    Input(ids.add_rates_change, "n_clicks"),
+    State(ids.rates_changes, "data"),
+)

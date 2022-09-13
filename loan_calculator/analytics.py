@@ -1,10 +1,10 @@
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
 
-def get_loan_data(loan: dict) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
+def get_loan_data(loan: dict, rates_change: List[dict]) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
     """Ensure all the required data is present then compute the loan timeseries"""
     start_date = loan.get("settlement_date")
     property_value = loan.get("property_value")
@@ -35,10 +35,11 @@ def get_loan_data(loan: dict) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
     ):
         return None, None
 
-    return compute_loan_timeseries(**loan)
+    return compute_loan_timeseries(**loan, rates_change=rates_change)
 
 
 def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-locals, unused-argument
+    *,
     property_value: float,
     annual_rate: float,
     borrowed_share: float,
@@ -50,6 +51,7 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     with_offset_account: float,
     yearly_fees: float,
     settlement_date: Union[str, pd.Timestamp],
+    rates_change: List[dict],
     **kwargs,
 ) -> Tuple[pd.DataFrame, bool]:
     """Compute the loan timeseries
@@ -85,7 +87,14 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     ) * with_offset_account
 
     # Define the monthly loan rate and fee
-    monthly_rate = annual_rate / 100 / 12
+    monthly_rate = pd.Series(annual_rate / 100 / 12, index=date_period)
+    if rates_change:
+        rate_change = (
+            pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["change"]
+        )
+        monthly_rate += (
+            rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill() / 12 / 100
+        )
     monthly_fee = yearly_fees / 12
 
     # Initialise the timeseries dataframe
@@ -106,7 +115,7 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     amortisation_payment = compute_amortisation_payment(principal, monthly_rate, loan_duration_years * 12)
 
     # Compute the value month after month
-    for i in range(len(date_period)):
+    for i, date in enumerate(date_period):
         if i == 0:
             offset = start_offset
             principal_paid = 0
@@ -115,10 +124,10 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
             principal_paid = data["principal_paid"].iat[i - 1]
 
         # If the loan is paid don't pay anything else
-        loan_payment = min(amortisation_payment, principal - principal_paid)
+        loan_payment = min(amortisation_payment.at[date], principal - principal_paid)
 
         # The interest depends on the amount still to pay on the loan
-        interest = max(0, principal - offset - principal_paid) * monthly_rate
+        interest = max(0, principal - offset - principal_paid) * monthly_rate.at[date]
 
         # Don't pay fees once the loan is fully repaid
         fee = monthly_fee if loan_payment > 0 else 0
