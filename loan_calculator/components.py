@@ -62,15 +62,16 @@ def timeline_input_item(  # pylint: disable = too-many-arguments
     value_id: dict,
     delete_id: dict,
     date: str = None,
-    change: float = None,
+    value: float = None,
     value_placeholder: str = None,
+    with_trend_bullet: bool = False,
 ):
     """Timeline item with inputs for date and value"""
     bullet = None
-    if change is not None:
-        if change > 0:
+    if with_trend_bullet and value is not None:
+        if value > 0:
             bullet = [DashIconify(icon="carbon:caret-up", color="red", height=20)]
-        elif change < 0:
+        elif value < 0:
             bullet = [DashIconify(icon="carbon:caret-down", color="lime", height=20)]
         else:
             bullet = [DashIconify(icon="carbon:subtract", color="blue", height=20)]
@@ -93,8 +94,8 @@ def timeline_input_item(  # pylint: disable = too-many-arguments
                         dcc.Input(
                             type="number",
                             placeholder=value_placeholder,
-                            # debounce=True,
-                            value=change,
+                            debounce=True,
+                            value=value,
                             id=value_id,
                             className="xs",
                         ),

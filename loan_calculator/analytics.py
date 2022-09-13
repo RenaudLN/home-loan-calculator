@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 
 
-def get_loan_data(loan: dict, rates_change: List[dict]) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
+def get_loan_data(
+    loan: dict, rates_change: List[dict], expenses: List[dict]
+) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
     """Ensure all the required data is present then compute the loan timeseries"""
     start_date = loan.get("settlement_date")
     property_value = loan.get("property_value")
@@ -35,7 +37,7 @@ def get_loan_data(loan: dict, rates_change: List[dict]) -> Tuple[Optional[pd.Dat
     ):
         return None, None
 
-    return compute_loan_timeseries(**loan, rates_change=rates_change)
+    return compute_loan_timeseries(**loan, rates_change=rates_change, expenses=expenses)
 
 
 def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-locals, unused-argument
@@ -52,6 +54,7 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     yearly_fees: float,
     settlement_date: Union[str, pd.Timestamp],
     rates_change: List[dict],
+    expenses: List[dict],
     **kwargs,
 ) -> Tuple[pd.DataFrame, bool]:
     """Compute the loan timeseries
@@ -90,12 +93,23 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     monthly_rate = pd.Series(annual_rate / 100 / 12, index=date_period)
     if rates_change:
         rate_change = (
-            pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["change"]
+            pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
         )
         monthly_rate += (
             rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill() / 12 / 100
         )
     monthly_fee = yearly_fees / 12
+
+    if expenses:
+        expenses = (
+            pd.DataFrame(expenses)
+            .assign(date=lambda df: pd.to_datetime(df["date"]))
+            .set_index("date")["value"]
+            .reindex(date_period)
+            .fillna(0)
+        )
+    else:
+        expenses = pd.Series(0, index=date_period)
 
     # Initialise the timeseries dataframe
     data = pd.DataFrame(
@@ -134,7 +148,9 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
 
         data.iloc[i] = [
             principal_paid + loan_payment - interest,
-            offset + monthly_income - loan_payment - monthly_costs - fee if with_offset_account else 0,
+            offset + monthly_income - loan_payment - monthly_costs - fee - expenses.at[date]
+            if with_offset_account
+            else 0,
             loan_payment - interest,
             interest,
             fee,
