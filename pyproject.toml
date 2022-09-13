@@ -10,7 +10,6 @@ requires-python = ">=3.7"
 dependencies = [
     "dash>=2.6.1",
     "gunicorn",
-    "enea_appshell",
     "dash_mantine_components",
     "dash_iconify",
     "numpy",
