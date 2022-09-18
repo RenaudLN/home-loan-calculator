@@ -100,7 +100,8 @@ def project_sidebar():
                     dmc.Space(h="sm"),
                     number_input(
                         id=ids.start_capital,
-                        label="Starting Capital ($)",
+                        label="Initial Capital ($)",
+                        description="Amount of available capital for this purchase",
                         min=0,
                         persistence=True,
                     ),

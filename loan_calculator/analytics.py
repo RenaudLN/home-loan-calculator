@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from numba import njit
 
 
 def get_loan_data(  # pylint: disable = too-many-locals
@@ -108,11 +109,22 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     )
     monthly_fee = yearly_fees / 12
 
-    expenses = get_expenses_series(date_period=date_period, expenses=expenses)
+    expenses_series = get_expenses_series(date_period=date_period, expenses=expenses)
 
-    # Initialise the timeseries dataframe
+    repayments = np.c_[
+        calculate_repayments(
+            monthly_rate.to_numpy(),
+            start_offset,
+            principal,
+            monthly_fee,
+            monthly_income,
+            monthly_costs,
+            expenses_series.to_numpy(),
+            with_offset_account,
+        )
+    ]
     data = pd.DataFrame(
-        index=date_period,
+        repayments,
         columns=[
             "principal_paid",
             "offset",
@@ -120,65 +132,71 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
             "interest",
             "fee",
             "repayment",
-            "deposit",
-            "stamp_duty",
         ],
-    ).rename_axis(index="date")
-
-    # Compute the value month after month
-    for i, date in enumerate(date_period):
-        if i == 0:
-            offset = start_offset
-            principal_paid = 0
-        else:
-            offset = data["offset"].iat[i - 1]
-            principal_paid = data["principal_paid"].iat[i - 1]
-
-        # Compute the amortisatino payment (i.e. the constant cashflow that will repay the loan + interests
-        # over the remainnig duration)
-        amortisation_payment = compute_amortisation_payment(
-            principal - principal_paid,
-            monthly_rate.at[date],
-            loan_duration_years * 12 - i,
-        )
-        # If the loan is paid don't pay anything else
-        loan_payment = min(amortisation_payment, principal - principal_paid)
-
-        # The interest depends on the amount still to pay on the loan
-        interest = max(0, principal - offset - principal_paid) * monthly_rate.at[date]
-
-        # Don't pay fees once the loan is fully repaid
-        fee = monthly_fee if loan_payment > 0 else 0
-
-        data.iloc[i] = [
-            principal_paid + loan_payment - interest,
-            offset + monthly_income - loan_payment - monthly_costs - fee - expenses.at[date]
-            if with_offset_account
-            else 0,
-            loan_payment - interest,
-            interest,
-            fee,
-            loan_payment + fee,
-            property_value * (100 - borrowed_share) / 100 if i == 0 else 0,
-            property_value * (stamp_duty_rate) / 100 if i == 0 else 0,
-        ]
+        index=date_period,
+    ).assign(deposit=0, stamp_duty=0)
+    data.at[data.index[0], "deposit"] = property_value * (100 - borrowed_share) / 100
+    data.at[data.index[0], "stamp_duty"] = property_value * (stamp_duty_rate) / 100
 
     feasible = start_capital >= property_value * (100 - borrowed_share + stamp_duty_rate) / 100
 
     return data, feasible
 
 
-def compute_amortisation_payment(
-    principal: float, rate: Union[float, np.ndarray], n_periods: int
-) -> Union[float, np.ndarray]:
-    """Compute the amortisation payment
+@njit(fastmath=True)
+def calculate_repayments(  # pylint: disable = too-many-arguments, too-many-locals
+    monthly_rate: np.ndarray,
+    start_offset: float,
+    principal: float,
+    monthly_fee: float,
+    monthly_income: float,
+    monthly_costs: float,
+    expenses: np.ndarray,
+    with_offset_account: bool,
+) -> np.ndarray:
+    """Calculate the repayments data with numba"""
+    n_periods = monthly_rate.shape[0]
+    principal_paid_ = np.zeros(n_periods)
+    offset_ = np.zeros(n_periods)
+    principal_payment_ = np.zeros(n_periods)
+    interest_ = np.zeros(n_periods)
+    fee_ = np.zeros(n_periods)
+    repayment_ = np.zeros(n_periods)
 
-    :param principal: Loan principal
-    :param rate: Loan rate (for the given period, e.g. monthly for a period of a month)
-    :param n_periods: Number of periods to amortise the loan
-    :return: Amortisation payment
-    """
-    return principal * rate * (1 + rate) ** n_periods / ((1 + rate) ** n_periods - 1)
+    for i in range(n_periods):
+        if i == 0:
+            offset = start_offset
+            principal_paid = 0
+        else:
+            offset = offset_[i - 1]
+            principal_paid = principal_paid_[i - 1]
+
+        # Compute the amortisatino payment (i.e. the constant cashflow that will repay the loan + interests
+        # over the remainnig duration)
+        amortisation_payment = (
+            (principal - principal_paid)
+            * monthly_rate[i]
+            * (1 + monthly_rate[i]) ** (n_periods - i)
+            / ((1 + monthly_rate[i]) ** (n_periods - i) - 1)
+        )
+        # If the loan is paid don't pay anything else
+        loan_payment = min(amortisation_payment, principal - principal_paid)
+
+        # The interest depends on the amount still to pay on the loan
+        interest = max(0, principal - offset - principal_paid) * monthly_rate[i]
+
+        # Don't pay fees once the loan is fully repaid
+        fee = monthly_fee if loan_payment > 0 else 0
+
+        principal_paid_[i] = principal_paid + loan_payment - interest
+        if with_offset_account:
+            offset_[i] = offset + monthly_income - loan_payment - monthly_costs - fee - expenses[i]
+        principal_payment_[i] = loan_payment - interest
+        interest_[i] = interest
+        fee_[i] = fee
+        repayment_[i] = loan_payment + fee
+
+    return principal_paid_, offset_, principal_payment_, interest_, fee_, repayment_
 
 
 def get_monthly_rate_series(

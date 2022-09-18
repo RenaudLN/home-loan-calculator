@@ -15,6 +15,7 @@ dependencies = [
     "numpy",
     "pandas",
     "plotly",
+    "numba",
 ]
 
 [project.optional-dependencies]
