@@ -312,6 +312,7 @@ class AppshellAIO(dmc.MantineProvider):
                     ),
                 ),
             ]
+            * bool(page_links)
             + [dmc.ScrollArea(sidebar_bottom_slot, offsetScrollbars=True, class_name="sidebar-slot")]
             * int(sidebar_bottom_slot is not None)
         )

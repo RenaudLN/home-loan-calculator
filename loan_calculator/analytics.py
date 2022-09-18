@@ -162,19 +162,22 @@ def calculate_repayments(  # pylint: disable = too-many-arguments, too-many-loca
     interest_ = np.zeros(n_periods)
     fee_ = np.zeros(n_periods)
     repayment_ = np.zeros(n_periods)
+    principal_paid_no_offset_ = np.zeros(n_periods)
 
     for i in range(n_periods):
         if i == 0:
             offset = start_offset
             principal_paid = 0
+            principal_paid_no_offset = 0
         else:
             offset = offset_[i - 1]
             principal_paid = principal_paid_[i - 1]
+            principal_paid_no_offset = principal_paid_no_offset_[i - 1]
 
         # Compute the amortisatino payment (i.e. the constant cashflow that will repay the loan + interests
         # over the remainnig duration)
         amortisation_payment = (
-            (principal - principal_paid)
+            (principal - principal_paid_no_offset)
             * monthly_rate[i]
             * (1 + monthly_rate[i]) ** (n_periods - i)
             / ((1 + monthly_rate[i]) ** (n_periods - i) - 1)
@@ -184,11 +187,13 @@ def calculate_repayments(  # pylint: disable = too-many-arguments, too-many-loca
 
         # The interest depends on the amount still to pay on the loan
         interest = max(0, principal - offset - principal_paid) * monthly_rate[i]
+        interest_no_offset = max(0, principal - principal_paid_no_offset) * monthly_rate[i]
 
         # Don't pay fees once the loan is fully repaid
         fee = monthly_fee if loan_payment > 0 else 0
 
         principal_paid_[i] = principal_paid + loan_payment - interest
+        principal_paid_no_offset_[i] = principal_paid_no_offset + loan_payment - interest_no_offset
         if with_offset_account:
             offset_[i] = offset + monthly_income - loan_payment - monthly_costs - fee - expenses[i]
         principal_payment_[i] = loan_payment - interest
@@ -217,7 +222,7 @@ def get_monthly_rate_series(
             pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
         )
         annual_rate_pct += (
-            rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill()
+            rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill().fillna(0)
         )
     if with_fixed_rate:
         fixed_rate_end = pd.Timestamp(

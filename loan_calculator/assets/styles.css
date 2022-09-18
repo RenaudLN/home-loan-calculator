@@ -3,7 +3,7 @@
     --mid-gray: 114, 117, 135;
     --primary: 112, 72, 232;
     --secondary: 41, 194, 102;
-    --sidebar-width: 250px
+    --sidebar-width: 300px
 }
 /* Variables can be updated for the dark theme */
 body[data-theme="dark"] {
@@ -102,16 +102,13 @@ body[data-theme="dark"] .navbar-link:not(.active):hover svg {
 /* Sidebar and Header slots styling */
 .sidebar-slot {
     padding: 0.75rem 1rem;
-    border-color: rgb(233, 236, 239);
+    border-color: transparent;
     border-width: 1px;
     overflow: hidden;
     flex: 0 1 auto;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-}
-body[data-theme="dark"] .sidebar-slot {
-    border-color: rgb(44, 46, 51);
 }
 .sidebar-slot:empty {
     padding: 0.25rem 0;
@@ -149,7 +146,7 @@ body[data-theme="dark"] .sidebar-slot {
 
 #header_wrapper {
     flex: 1;
-    max-width: 1400px;
+    /* max-width: 1400px; */
     display: flex;
     align-items: center;
     justify-content: space-between;

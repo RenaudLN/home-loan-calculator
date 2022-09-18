@@ -1,6 +1,6 @@
 from dash import Dash
 
-from loan_calculator.aio_appshell import AppshellAIO
+from loan_calculator.shell import appshell
 
 app = Dash(
     __name__,
@@ -15,8 +15,6 @@ app.css.config.serve_locally = True
 app.scripts.config.serve_locally = True
 server = app.server
 
-
-appshell = AppshellAIO("Loan Calculator", primary_color="teal")
 
 app.layout = appshell
 
