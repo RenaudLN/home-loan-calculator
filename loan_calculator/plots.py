@@ -31,7 +31,7 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
         .update_layout(
             height=600,
             margin=dict(b=30, t=50, l=50, r=20, pad=8),
-            yaxis_title="Cumulative Payments ($)",
+            yaxis_title="Cumulative ($)",
             title_x=0.5,
             title_xanchor="center",
             title_font_color="#000",
@@ -46,7 +46,7 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
             legend=dict(y=-0.05, yanchor="top", orientation="h", x=1, xanchor="right"),
             **{
                 f"yaxis{i}": dict(
-                    title="Monthly Payments ($)" if i == len(data_list) + 1 else None,
+                    title="Monthly ($)" if i == len(data_list) + 1 else None,
                     matches=f"y{'' if i <= len(data_list) else len(data_list) + 1}"
                     if i != len(data_list) + 1
                     else None,
@@ -180,6 +180,18 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
             row=1,
             col=i,
         )
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=total_payments.cumsum(),
+                name="Total",
+                showlegend=False,
+                line=dict(color="rgba(0,0,0,0)"),
+                hovertemplate="$%{y:.3s}",
+            ),
+            row=1,
+            col=i,
+        )
 
         # Add the monthly payment traces
         fig.add_trace(
@@ -234,6 +246,18 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
                 textposition="top center",
                 textfont=dict(size=12, color="#888"),
                 hoverinfo="skip",
+            ),
+            row=2,
+            col=i,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=total_payments2,
+                name="Total",
+                showlegend=False,
+                line=dict(color="rgba(0,0,0,0)"),
+                hovertemplate="$%{y:.3s}",
             ),
             row=2,
             col=i,

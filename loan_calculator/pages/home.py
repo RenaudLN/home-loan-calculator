@@ -39,11 +39,12 @@ class ids:  # pylint: disable = invalid-name
     expense_value_item = lambda i: {"type": "expense-value-item", "order": i}
     expense_delete_item = lambda i: {"type": "expense-delete-item", "order": i}
     # Loans
-    new_loan_button = "new_loan_button"
+    new_offer_button = "new_offer_button"
     search = "search_loans"
     offers_wrapper = "offers_wrapper"
     edit_offer = lambda name: {"type": "edit-offer", "name": name}
     delete_offer = lambda name: {"type": "delete-offer", "name": name}
+    create_offer = lambda name: {"type": "create-offer", "name": name}
     # Comparison
     comparison_wrapper = "offer_comparison_wrapper"
     loans = "loans_store"
@@ -176,7 +177,7 @@ def project_sidebar():
                                     ),
                                 ],
                             ),
-                        ]
+                        ],
                     ),
                 ]
             ),
@@ -196,7 +197,7 @@ def offers_grid():
                     style={"flex": "1"},
                     icon=[DashIconify(icon="carbon:search")],
                 ),
-                dmc.Button("Add Offer", leftIcon=[DashIconify(icon="carbon:add", height=16)], id=ids.new_loan_button),
+                dmc.Button("Add Offer", leftIcon=[DashIconify(icon="carbon:add", height=16)], id=ids.new_offer_button),
             ],
             style={"display": "flex", "alignItems": "center", "gap": "0.5rem"},
         ),
@@ -264,13 +265,17 @@ def offers_grid_contents(loans_data: dict, search: str, property_value: float):
 def no_offers_grid_contents():
     """Message prompting the user to add offers"""
     return dmc.Paper(
-        dmc.Text("Start by creating offers", color="gray"),
-        style={
-            "height": "min(400px, calc(90vh - 200px))",
-            "display": "grid",
-            "placeContent": "center",
-            "gridColumn": "1 / -1",
-        },
+        html.Div(
+            dmc.Text("Start by creating offers", color="gray"),
+            style={
+                "height": "min(400px, calc(90vh - 200px))",
+                "display": "grid",
+                "placeContent": "center",
+                "cursor": "pointer",
+            },
+            id=ids.create_offer("first"),
+        ),
+        style={"gridColumn": "1 / -1"},
         radius="md",
     )
 
@@ -280,23 +285,25 @@ def offers_comparison():
     return [
         dmc.MultiSelect(id=ids.select, maxSelectedValues=4, persistence=True),
         dmc.Space(h="md"),
-        html.Div(
-            dmc.Paper(
-                dmc.Text(
-                    "Create loan offers then select them above.",
-                    color="gray",
-                    size="xl",
-                ),
-                style={
-                    "height": "min(400px, calc(90vh - 200px))",
-                    "display": "grid",
-                    "placeContent": "center",
-                },
-                radius="md",
-            ),
-            id=ids.comparison_wrapper,
-        ),
+        html.Div(offers_comparison_empty_content(), id=ids.comparison_wrapper),
     ]
+
+
+def offers_comparison_empty_content():
+    """Content of comparison tab when no offer is selected"""
+    return dmc.Paper(
+        html.Div(
+            dmc.Text("Create loan offers then select them above.", color="gray"),
+            style={
+                "height": "min(400px, calc(90vh - 200px))",
+                "display": "grid",
+                "placeContent": "center",
+                "cursor": "pointer",
+            },
+            id=ids.create_offer("comparison"),
+        ),
+        radius="md",
+    )
 
 
 clientside_callback(
@@ -323,13 +330,14 @@ clientside_callback(
 
 
 clientside_callback(
-    """function(a, b, c, opened) {
+    """function(a, b, c, d, opened) {
         const ctx = window.dash_clientside.callback_context
         if (ctx.triggered.length === 0 || !ctx.triggered[0].value) return window.dash_clientside.no_update
         return !opened
     }""",
     Output(loan_modal.ids.modal, "opened"),
-    Input(ids.new_loan_button, "n_clicks"),
+    Input(ids.new_offer_button, "n_clicks"),
+    Input(ids.create_offer(ALL), "n_clicks"),
     Input(ids.edit_offer(ALL), "n_clicks"),
     Input(loan_modal.ids.save(ALL), "n_clicks"),
     State(loan_modal.ids.modal, "opened"),
@@ -394,19 +402,7 @@ def compute_loan(
 ):
     """Compute the loan results"""
     if not loans_data or not loans_names:
-        return dmc.Paper(
-            dmc.Text(
-                "Create loan offers then select them above.",
-                color="gray",
-                size="xl",
-            ),
-            style={
-                "height": "min(400px, calc(90vh - 200px))",
-                "display": "grid",
-                "placeContent": "center",
-            },
-            radius="md",
-        )
+        return offers_comparison_empty_content()
 
     project_params = {inp["id"]["id"]: value for inp, value in zip(ctx.inputs_list[1], project_params)}
     rates_change = [rc for rc in (rates_change or []) if rc.get("date") and rc.get("value") is not None]
@@ -469,16 +465,19 @@ def compute_loan(
 @callback(
     Output(loan_modal.ids.modal, "children"),
     Output(loan_modal.ids.modal, "title"),
-    Input(ids.new_loan_button, "n_clicks"),
+    Input(ids.new_offer_button, "n_clicks"),
+    Input(ids.create_offer(ALL), "n_clicks"),
     Input(ids.edit_offer(ALL), "n_clicks"),
     State(ids.loans, "data"),
 )
-def update_offer_modal_content(new_trigger, edit_triggers, loans_data):  # pylint: disable = unused-argument
+def update_offer_modal_content(
+    new_trigger, create_triggers, edit_triggers, loans_data
+):  # pylint: disable = unused-argument
     """Update the content of the offer modal"""
     if not ctx.triggered_id:
         return [no_update] * 2
 
-    if isinstance(ctx.triggered_id, dict):
+    if isinstance(ctx.triggered_id, dict) and ctx.triggered_id["type"] == "edit-offer":
         name = ctx.triggered_id["name"]
         loan_data = loans_data[name]
     else:

@@ -1,5 +1,5 @@
 import dash_mantine_components as dmc
-from dash import html
+from dash import MATCH, Input, Output, clientside_callback, html
 from dash_iconify import DashIconify
 
 
@@ -14,7 +14,7 @@ def loan_boolean(param: str, name: str):
 
 
 class ids:  # pylint: disable = invalid-name
-    """Loan modal IDs"""
+    """Offer modal IDs"""
 
     modal = "loan_modal"
     name = lambda name: loan_param("name", name)
@@ -22,19 +22,22 @@ class ids:  # pylint: disable = invalid-name
     borrowed_share = lambda name: loan_param("borrowed_share", name)
     loan_duration_years = lambda name: loan_param("loan_duration_years", name)
     with_offset_account = lambda name: loan_boolean("with_offset_account", name)
+    with_fixed_rate = lambda name: loan_boolean("with_fixed_rate", name)
     start_date = lambda name: loan_param("start_date", name)
     yearly_fees = lambda name: loan_param("yearly_fees", name)
-    save = lambda name: {"type": "save-loan", "name": name}
+    fixed_rate = lambda name: loan_param("fixed_rate", name)
+    fixed_rate_duration = lambda name: loan_param("fixed_rate_duration", name)
+    save = lambda name: {"type": "save-offer", "name": name}
 
 
 def layout(name: str = "__new__", **kwargs):
-    """Loan modal layout"""
+    """Offer modal layout"""
     return dmc.Modal(
         id=ids.modal,
         centered=True,
         size="xl",
         withCloseButton=True,
-        title="New Loan",
+        title="New Offer",
         children=modal_content(name, **kwargs),
     )
 
@@ -82,6 +85,31 @@ def modal_content(name: str, **kwargs):
             ),
             html.Div(
                 dmc.Switch(
+                    id=ids.with_fixed_rate(name),
+                    checked=kwargs.get("with_fixed_rate", False),
+                    label="With Fixed Rate",
+                    style={"marginTop": "0.5rem"},
+                ),
+                style={"gridColumn": "1 / -1"},
+            ),
+            dmc.NumberInput(
+                id=ids.fixed_rate(name),
+                value=kwargs.get("fixed_rate"),
+                min=0,
+                precision=3,
+                label="Fixed Rate (% p.a.)",
+                style={"display": "none" if not kwargs.get("with_fixed_rate") else "block"},
+            ),
+            dmc.NumberInput(
+                id=ids.fixed_rate_duration(name),
+                value=kwargs.get("fixed_rate_duration"),
+                min=0,
+                precision=0,
+                label="Fixed Rate Duration (years)",
+                style={"display": "none" if not kwargs.get("with_fixed_rate") else "block"},
+            ),
+            html.Div(
+                dmc.Switch(
                     id=ids.with_offset_account(name),
                     checked=kwargs.get("with_offset_account", False),
                     label="With Offset Account",
@@ -96,3 +124,22 @@ def modal_content(name: str, **kwargs):
         ],
         style={"gap": "0.5rem", "display": "grid", "gridTemplateColumns": "1fr 1fr"},
     )
+
+
+clientside_callback(
+    """function(withFixedRate) {
+        if (withFixedRate) {
+            return [
+                {display: "block"},
+                {display: "block"},
+            ]
+        }
+        return [
+            {display: "none"},
+            {display: "none"},
+        ]
+    }""",
+    Output(ids.fixed_rate(MATCH), "style"),
+    Output(ids.fixed_rate_duration(MATCH), "style"),
+    Input(ids.with_fixed_rate(MATCH), "checked"),
+)

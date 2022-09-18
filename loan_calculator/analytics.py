@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 
 
-def get_loan_data(
+def get_loan_data(  # pylint: disable = too-many-locals
     loan: dict, rates_change: List[dict], expenses: List[dict]
 ) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
     """Ensure all the required data is present then compute the loan timeseries"""
-    start_date = loan.get("settlement_date")
+    settlement_date = loan.get("settlement_date")
     property_value = loan.get("property_value")
     annual_rate = loan.get("annual_rate")
     borrowed_share = loan.get("borrowed_share")
@@ -17,8 +17,10 @@ def get_loan_data(
     stamp_duty_rate = loan.get("stamp_duty_rate")
     monthly_income = loan.get("monthly_income")
     monthly_costs = loan.get("monthly_costs")
-    with_offset_account = loan.get("with_offset_account")
     yearly_fees = loan.get("yearly_fees")
+    with_fixed_rate = loan.get("with_fixed_rate")
+    fixed_rate = loan.get("fixed_rate")
+    fixed_rate_duration = loan.get("fixed_rate_duration")
 
     if not all(
         [
@@ -30,11 +32,13 @@ def get_loan_data(
             stamp_duty_rate is not None,
             monthly_income is not None,
             monthly_costs is not None,
-            with_offset_account is not None,
             yearly_fees is not None,
-            start_date is not None,
+            settlement_date is not None,
         ]
     ):
+        return None, None
+
+    if with_fixed_rate and not all([fixed_rate, fixed_rate_duration]):
         return None, None
 
     return compute_loan_timeseries(**loan, rates_change=rates_change, expenses=expenses)
@@ -55,6 +59,9 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     settlement_date: Union[str, pd.Timestamp],
     rates_change: List[dict],
     expenses: List[dict],
+    with_fixed_rate: bool = False,
+    fixed_rate: float = None,
+    fixed_rate_duration: int = None,
     **kwargs,
 ) -> Tuple[pd.DataFrame, bool]:
     """Compute the loan timeseries
@@ -90,26 +97,18 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     ) * with_offset_account
 
     # Define the monthly loan rate and fee
-    monthly_rate = pd.Series(annual_rate / 100 / 12, index=date_period)
-    if rates_change:
-        rate_change = (
-            pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
-        )
-        monthly_rate += (
-            rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill() / 12 / 100
-        )
+    monthly_rate = get_monthly_rate_series(
+        date_period=date_period,
+        annual_rate=annual_rate,
+        rates_change=rates_change,
+        with_fixed_rate=with_fixed_rate,
+        fixed_rate=fixed_rate,
+        fixed_rate_duration=fixed_rate_duration,
+        settlement_date=settlement_date,
+    )
     monthly_fee = yearly_fees / 12
 
-    if expenses:
-        expenses = (
-            pd.DataFrame(expenses)
-            .assign(date=lambda df: pd.to_datetime(df["date"]))
-            .set_index("date")["value"]
-            .reindex(date_period)
-            .fillna(0)
-        )
-    else:
-        expenses = pd.Series(0, index=date_period)
+    expenses = get_expenses_series(date_period=date_period, expenses=expenses)
 
     # Initialise the timeseries dataframe
     data = pd.DataFrame(
@@ -126,8 +125,6 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
         ],
     ).rename_axis(index="date")
 
-    amortisation_payment = compute_amortisation_payment(principal, monthly_rate, loan_duration_years * 12)
-
     # Compute the value month after month
     for i, date in enumerate(date_period):
         if i == 0:
@@ -137,8 +134,15 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
             offset = data["offset"].iat[i - 1]
             principal_paid = data["principal_paid"].iat[i - 1]
 
+        # Compute the amortisatino payment (i.e. the constant cashflow that will repay the loan + interests
+        # over the remainnig duration)
+        amortisation_payment = compute_amortisation_payment(
+            principal - principal_paid,
+            monthly_rate.at[date],
+            loan_duration_years * 12 - i,
+        )
         # If the loan is paid don't pay anything else
-        loan_payment = min(amortisation_payment.at[date], principal - principal_paid)
+        loan_payment = min(amortisation_payment, principal - principal_paid)
 
         # The interest depends on the amount still to pay on the loan
         interest = max(0, principal - offset - principal_paid) * monthly_rate.at[date]
@@ -175,3 +179,48 @@ def compute_amortisation_payment(
     :return: Amortisation payment
     """
     return principal * rate * (1 + rate) ** n_periods / ((1 + rate) ** n_periods - 1)
+
+
+def get_monthly_rate_series(
+    *,
+    date_period: pd.DatetimeIndex,
+    annual_rate: float,
+    rates_change: List[dict],
+    with_fixed_rate: bool = False,
+    fixed_rate: float = None,
+    fixed_rate_duration: int = None,
+    settlement_date: Union[str, pd.Timestamp],
+):
+    """Create the monthly rate time series"""
+    # Define the monthly loan rate and fee
+    annual_rate_pct = pd.Series(annual_rate, index=date_period)
+    if rates_change:
+        rate_change = (
+            pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
+        )
+        annual_rate_pct += (
+            rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill()
+        )
+    if with_fixed_rate:
+        fixed_rate_end = pd.Timestamp(
+            f"{pd.Timestamp(settlement_date).year + fixed_rate_duration}-"
+            f"{pd.Timestamp(settlement_date).strftime('%m-%d')}"
+        ) - pd.Timedelta("1D")
+        annual_rate_pct.loc[:fixed_rate_end] = fixed_rate
+
+    monthly_rate = annual_rate_pct / 12 / 100
+
+    return monthly_rate
+
+
+def get_expenses_series(*, date_period: pd.DatetimeIndex, expenses: List[dict]):
+    """Create the time series of extra expenses"""
+    if expenses:
+        return (
+            pd.DataFrame(expenses)
+            .assign(date=lambda df: pd.to_datetime(df["date"]))
+            .set_index("date")["value"]
+            .reindex(date_period)
+            .fillna(0)
+        )
+    return pd.Series(0, index=date_period)
