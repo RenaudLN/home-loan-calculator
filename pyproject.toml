@@ -12,6 +12,7 @@ dependencies = [
     "gunicorn",
     "dash_mantine_components",
     "dash_iconify",
+    "dash_breakpoints",
     "numpy",
     "pandas",
     "plotly",

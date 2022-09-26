@@ -3,7 +3,8 @@
     --mid-gray: 114, 117, 135;
     --primary: 112, 72, 232;
     --secondary: 41, 194, 102;
-    --sidebar-width: 300px
+    --sidebar-width: 300px;
+    --topbar-height: 64px;
 }
 /* Variables can be updated for the dark theme */
 body[data-theme="dark"] {
@@ -154,8 +155,21 @@ body[data-theme="dark"] .navbar-link:not(.active):hover svg {
 }
 
 .content-wrapper {
-    min-height: calc(100vh - 64px);
+    min-height: calc(100vh - var(--topbar-height));
     padding: 0.5rem 1rem;
+}
+
+.content-scroll {
+    flex: 1 1 auto;
+    position: fixed !important;
+    top: var(--topbar-height);
+    left: 0;
+    width: 100vw;
+}
+
+.content-scroll.with-sidebar {
+    left: var(--sidebar-width);
+    width: calc(100vw - var(--sidebar-width));
 }
 
 .menu-drawer {
@@ -164,12 +178,15 @@ body[data-theme="dark"] .navbar-link:not(.active):hover svg {
 }
 
 @media(max-width: 800px) {
-    .sidebar {
-        display: none !important;
-    }
-
     .content-wrapper {
         padding: 0.5rem 0.25rem;
+    }
+    .nav-content-wrapper {
+        display: none;
+    }
+    .content-scroll.with-sidebar {
+        left: 0;
+        width: 100vw;
     }
 }
 

@@ -1,12 +1,13 @@
-import itertools
-from copy import deepcopy
 from dataclasses import dataclass
-from typing import List, Literal, Tuple, Union
+from typing import List, Literal, Union
 
 import dash_mantine_components as dmc
-from dash import ALL, MATCH, Input, Output, State, clientside_callback, dcc, html
+from dash import ALL, MATCH, Input, Output, State, callback, clientside_callback, dcc, html
 from dash.development.base_component import Component
+from dash_breakpoints import WindowBreakpoints
 from dash_iconify import DashIconify
+
+SMALL_THRESHOLD = 800
 
 
 @dataclass
@@ -44,12 +45,14 @@ synchronise_boolean_function = """function(...inputs) {
 }"""
 
 
-class AppshellAIO(dmc.MantineProvider):
+class AppshellAIO(dmc.MantineProvider):  # pylint: disable = too-many-instance-attributes
     """Dash appshell"""
 
     class ids:  # pylint: disable = invalid-name
         """Appshell ids, all ids should be defined here"""
 
+        breakpoints = "window-breakpoints"
+        breakpoints_layout = "breakpoints-layout-wrapper"
         navbar_link = lambda href: {"type": "navbar-link", "id": href}
         header_logo = "header-logo"
         theme_provider = "theme-provider"
@@ -92,11 +95,22 @@ class AppshellAIO(dmc.MantineProvider):
         :param sidebar_top_slot: Components to be displayed at the top of the sidebar
         :param sidebar_bottom_slot: Components to be displayed at the bottom of the sidebar
         """
+        self.app_title = app_title
+        self.home_pathname = home_pathname
+        self.page_links = page_links
+        self.with_logo = with_logo
+        self.primary_color = primary_color
+        self.header_slot = header_slot
+        self.sidebar_top_slot = sidebar_top_slot
+        self.sidebar_bottom_slot = sidebar_bottom_slot
+
         if additional_themed_content is None:
             additional_themed_content = []
 
-        has_sidebar = sidebar_bottom_slot is not None or sidebar_top_slot is not None or bool(page_links)
-        has_mobile_drawer = header_slot is not None or has_sidebar
+        callback(
+            Output(self.ids.breakpoints_layout, "children"),
+            Input(self.ids.breakpoints, "widthBreakpoint"),
+        )(self.change_breakpoint_layout)
 
         # Define the appshell layout
         super().__init__(
@@ -117,37 +131,32 @@ class AppshellAIO(dmc.MantineProvider):
                 dmc.NotificationsProvider(
                     [
                         html.Div(
-                            [
-                                self.create_header(app_title, home_pathname, with_logo, header_slot, has_mobile_drawer),
-                                html.Div(
-                                    [self.create_sidebar(page_links, sidebar_top_slot, sidebar_bottom_slot)]
-                                    * int(has_sidebar)
-                                    + [
-                                        dmc.ScrollArea(
-                                            offsetScrollbars=False,
-                                            type="auto",
-                                            children=html.Div(
-                                                [
-                                                    html.Div(id=self.ids.pages_content),
-                                                    html.Div(html.Div(), className="overlay-loader"),
-                                                ],
-                                                className="content-wrapper",
-                                            ),
-                                            style={"flex": "1 1 auto"},
-                                        ),
-                                        dcc.Store(id=self.ids.pages_store),
-                                        dcc.Location(id=self.ids.url, refresh=False),
-                                    ],
-                                    className="nav-content-wrapper",
-                                ),
-                                html.Div(id=self.ids.pages_dummy),
-                                dcc.Store(id=self.ids.primary_color_, data=primary_color),
-                            ],
                             style={"display": "flex", "flexDirection": "column", "height": "100vh"},
+                            id=self.ids.breakpoints_layout,
                         ),
+                        dmc.ScrollArea(
+                            offsetScrollbars=False,
+                            type="auto",
+                            children=html.Div(
+                                [
+                                    html.Div(id=self.ids.pages_content),
+                                    html.Div(html.Div(), className="overlay-loader"),
+                                ],
+                                className="content-wrapper",
+                            ),
+                            class_name="content-scroll" + " with-sidebar" * self.has_sidebar,
+                        ),
+                        html.Div(html.Div(), className="overlay-loader"),
+                        WindowBreakpoints(
+                            id=self.ids.breakpoints,
+                            widthBreakpointThresholdsPx=[SMALL_THRESHOLD],
+                            widthBreakpointNames=["small", "large"],
+                        ),
+                        html.Div(id=self.ids.pages_dummy),
+                        dcc.Store(id=self.ids.primary_color_, data=primary_color),
+                        dcc.Store(id=self.ids.pages_store),
+                        dcc.Location(id=self.ids.url, refresh=False),
                     ]
-                    + [self.create_mobile_drawer(page_links, header_slot, sidebar_top_slot, sidebar_bottom_slot)]
-                    * int(has_mobile_drawer)
                     + (
                         additional_themed_content
                         if isinstance(additional_themed_content, List)
@@ -158,20 +167,38 @@ class AppshellAIO(dmc.MantineProvider):
             ],
         )
 
-    def create_mobile_drawer(
+    @property
+    def has_sidebar(self):
+        """Wether a sidebar should be displayed"""
+        return self.sidebar_bottom_slot is not None or self.sidebar_top_slot is not None or bool(self.page_links)
+
+    def change_breakpoint_layout(
         self,
-        page_links: List[Union[PageLink, Component]],
-        header_slot: Union[Component, List[Component]],
-        sidebar_top_slot: Union[Component, List[Component]],
-        sidebar_bottom_slot: Union[Component, List[Component]],
-    ) -> Component:
+        breakpoint_value: Literal["small", "large"],
+    ) -> List[Component]:
+        """Create the contents/topbar/sidebar depending on the breakpoint_value"""
+        if breakpoint_value == "large":
+            return [
+                self.create_header(breakpoint_value),
+                html.Div(
+                    [self.create_sidebar()] * self.has_sidebar,
+                    className="nav-content-wrapper",
+                ),
+            ]
+
+        return [
+            self.create_header(breakpoint_value),
+            self.create_mobile_drawer(),
+        ]
+
+    def create_mobile_drawer(self) -> Component:
         """Mobile drawer containing all of the sidebar and header slot on mobile formats"""
-        sidebar_contents = self.make_sidebar_contents(page_links, sidebar_top_slot, sidebar_bottom_slot)
+        sidebar_contents = self.make_sidebar_contents()
         header_contents = dmc.ScrollArea(
             offsetScrollbars=False,
             type="auto",
             children=html.Div(
-                header_slot,
+                self.header_slot,
                 style={
                     "display": "flex",
                     "flexDirection": "column",
@@ -180,28 +207,18 @@ class AppshellAIO(dmc.MantineProvider):
                 },
             ),
         )
-        drawer_contents = [
-            header_contents,
+        drawer_contents = [header_contents] * bool(self.header_slot) + [
             html.Div(
                 sidebar_contents,
-                style={"flex": "1 1 auto", "display": "flex", "flexDirection": "column", "margin": "1rem -1rem 0"},
+                style={
+                    "flex": "1 1 auto",
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "margin": f"{'1rem' if self.header_slot else 0} -1rem 0",
+                    "overflow": "hidden",
+                },
             ),
         ]
-
-        # Synchronise the replicated items in the drawer with the originals
-        # NOTE: This is only done once at the app creation so no dynamic buttons /searches here
-        slot_ids = get_all_ids(drawer_contents) if drawer_contents is not None else []
-        drawer_contents = make_ids_unique(drawer_contents, "header_drawer")
-        drawer_ids = get_all_ids(drawer_contents) if drawer_contents is not None else []
-        for (s_id, attributes), (d_id, _) in zip(slot_ids, drawer_ids):
-            for attribute in attributes:
-                if "type" in d_id and d_id["type"] == "navbar-link" and attribute == "className":
-                    continue
-                clientside_callback(
-                    synchronise_function,
-                    Output(s_id, attribute),
-                    Input(d_id, attribute),
-                )
 
         return dmc.Drawer(
             drawer_contents,
@@ -211,14 +228,7 @@ class AppshellAIO(dmc.MantineProvider):
             class_name="menu-drawer",
         )
 
-    def create_header(  # pylint: disable = too-many-arguments
-        self,
-        app_title: str,
-        home_pathname: str,
-        with_logo: bool,
-        header_slot: Union[Component, List[Component]],
-        has_mobile_drawer: bool,
-    ) -> Component:
+    def create_header(self, breakpoint_value: Literal["small", "large"]) -> Component:
         """Create the app's header
 
         :param app_title: Title displayed in the header of the app
@@ -227,50 +237,39 @@ class AppshellAIO(dmc.MantineProvider):
         """
 
         return dmc.Header(
-            height=64,
+            height="var(--topbar-height)",
             p="md",
             style={"flex": "0 0 auto"},
-            children=html.Div(
-                [
-                    dcc.Link(
-                        [html.Div(id=self.ids.header_logo)] * int(with_logo)
-                        + [dmc.Text(app_title, size="xl", color="gray")],
-                        href=home_pathname,
-                        style={
-                            "textDecoration": "none",
-                            "display": "flex",
-                            "alignItems": "center",
-                            "gap": "0.25rem",
-                        },
-                    ),
-                    html.Div(
-                        style={"display": "flex", "alignItems": "center", "gap": "1rem"},
-                        children=[
-                            dmc.MediaQuery(
-                                html.Div(header_slot, className="header-slot"),
-                                smallerThan=800,
-                                styles={"display": "none"},
+            children=[
+                dcc.Link(
+                    [html.Div(id=self.ids.header_logo)] * self.with_logo
+                    + [dmc.Text(self.app_title, size="xl", color="gray")],
+                    href=self.home_pathname,
+                    style={
+                        "textDecoration": "none",
+                        "display": "flex",
+                        "alignItems": "center",
+                        "gap": "0.25rem",
+                    },
+                ),
+                html.Div(
+                    style={"display": "flex", "alignItems": "center", "gap": "1rem"},
+                    children=(
+                        [html.Div(self.header_slot, className="header-slot")]
+                        if breakpoint_value == "large"
+                        else [
+                            dmc.Button(
+                                DashIconify(icon="gg:menu-right", height=28),
+                                variant="subtle",
+                                color="dark",
+                                style={"padding": 0, "height": 30},
+                                id=self.ids.header_overflow_menu,
                             )
                         ]
-                        + [
-                            dmc.MediaQuery(
-                                dmc.Button(
-                                    DashIconify(icon="eva:menu-fill", height=28),
-                                    variant="subtle",
-                                    style={"padding": 0, "height": 30},
-                                    id=self.ids.header_overflow_menu,
-                                ),
-                                largerThan=800,
-                                styles={"display": "none !important"},
-                                class_name="header-slot",
-                            ),
-                        ]
-                        * int(has_mobile_drawer)
-                        + [dmc.ThemeSwitcher(id=self.ids.theme_toggle, style={"cursor": "pointer"})],
-                    ),
-                ],
-                id="header_wrapper",
-            ),
+                    )
+                    + [dmc.ThemeSwitcher(id=self.ids.theme_toggle, style={"cursor": "pointer"})],
+                ),
+            ],
         )
 
     def navbar_link(self, page_link: PageLink) -> Component:
@@ -287,17 +286,12 @@ class AppshellAIO(dmc.MantineProvider):
             id=self.ids.navbar_link(page_link.href),
         )
 
-    def make_sidebar_contents(
-        self,
-        page_links: List[PageLink],
-        sidebar_top_slot: Union[Component, List[Component]],
-        sidebar_bottom_slot: Union[Component, List[Component]],
-    ):
+    def make_sidebar_contents(self):
         """Sidebar contents, used in sidebar and mobile drawer"""
-        page_links = page_links or []
+        page_links = self.page_links or []
         return (
-            [dmc.ScrollArea(sidebar_top_slot, offsetScrollbars=True, class_name="sidebar-slot")]
-            * int(sidebar_top_slot is not None)
+            [dmc.ScrollArea(self.sidebar_top_slot, offsetScrollbars=True, class_name="sidebar-slot")]
+            * (self.sidebar_top_slot is not None)
             + [
                 dmc.ScrollArea(
                     offsetScrollbars=True,
@@ -313,16 +307,11 @@ class AppshellAIO(dmc.MantineProvider):
                 ),
             ]
             * bool(page_links)
-            + [dmc.ScrollArea(sidebar_bottom_slot, offsetScrollbars=True, class_name="sidebar-slot")]
-            * int(sidebar_bottom_slot is not None)
+            + [dmc.ScrollArea(self.sidebar_bottom_slot, offsetScrollbars=True, class_name="sidebar-slot")]
+            * (self.sidebar_bottom_slot is not None)
         )
 
-    def create_sidebar(
-        self,
-        page_links: List[Union[PageLink, Component]],
-        sidebar_top_slot: Union[Component, List[Component]] = None,
-        sidebar_bottom_slot: Union[Component, List[Component]] = None,
-    ) -> Component:
+    def create_sidebar(self) -> Component:
         """Create the app's sidebar
 
         :param page_links: Links to be displayed in the sidebar
@@ -335,7 +324,7 @@ class AppshellAIO(dmc.MantineProvider):
             fixed=False,
             class_name="sidebar",
             py="lg",
-            children=self.make_sidebar_contents(page_links, sidebar_top_slot, sidebar_bottom_slot),
+            children=self.make_sidebar_contents(),
         )
 
     # Clientside callback to update the Mantine Theme
@@ -363,16 +352,13 @@ class AppshellAIO(dmc.MantineProvider):
             const href = id["id"]
             const decodedPathname = decodeURI(pathname)
             if (href === decodedPathname || decodedPathname.startsWith(`${href}/`)) {
-                return ["navbar-link active", "navbar-link active"]
+                return "navbar-link active"
             }
-            return ["navbar-link", "navbar-link"]
+            return "navbar-link"
         }""",
-        [
-            Output(ids.navbar_link(MATCH), "className"),
-            Output({"prefix": "header_drawer"} | ids.navbar_link(MATCH), "className"),
-        ],
-        [Input(ids.url, "pathname")],
-        [State(ids.navbar_link(MATCH), "id")],
+        Output(ids.navbar_link(MATCH), "className"),
+        Input(ids.url, "pathname"),
+        State(ids.navbar_link(MATCH), "id"),
     )
 
     # Create a multiplexer for the url component, allowing multiple callbacks to update the url
@@ -389,51 +375,9 @@ class AppshellAIO(dmc.MantineProvider):
         Output(ids.sidebar_drawer, "opened"),
         Input(ids.sidebar_overflow_menu, "n_clicks"),
     )
+
     clientside_callback(
         synchronise_boolean_function,
         Output(ids.header_drawer, "opened"),
         Input(ids.header_overflow_menu, "n_clicks"),
     )
-
-
-def get_all_ids(components: Union[Component, List[Component]]) -> List[Tuple[str, str]]:
-    """Retrieve the list of all ids and their synchronisable attributes"""
-
-    def _get_ids_recursive(components: Union[Component, List[Component]]):
-        ids = []
-        if isinstance(components, List):
-            ids += list(itertools.chain.from_iterable([_get_ids_recursive(c) for c in components]))
-        elif isinstance(components, Component):
-            if "id" in dir(components) and components.id:
-                attributes = [
-                    x
-                    for x in ["data", "n_clicks", "value", "className", "class_name", "options"]
-                    if x in components.available_properties
-                ]
-                ids.append((components.id, attributes))
-            if "children" in dir(components) and components.children:
-                ids += _get_ids_recursive(components.children)
-        return ids
-
-    components = deepcopy(components)
-    return _get_ids_recursive(components)
-
-
-def make_ids_unique(components: Union[Component, List[Component]], prefix: str) -> Union[Component, List[Component]]:
-    """Give every component that has an id a new one with a prefix"""
-
-    def _make_unique_recursive(components: Union[Component, List[Component]], prefix: str):
-        if isinstance(components, List):
-            return [_make_unique_recursive(c, prefix) for c in components]
-        if isinstance(components, Component):
-            if "id" in dir(components) and components.id:
-                if isinstance(components.id, dict):
-                    components.id = {"prefix": prefix} | components.id
-                else:
-                    components.id = {"prefix": prefix, "id": components.id}
-            if "children" in dir(components) and components.children:
-                components.children = _make_unique_recursive(components.children, prefix)
-        return components
-
-    components = deepcopy(components)
-    return _make_unique_recursive(components, prefix)
