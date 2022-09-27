@@ -343,3 +343,12 @@ body[data-theme="dark"] input[type="number"]::placeholder {
 .mantine-Accordion-contentInner {
     padding: 0.25rem 0 1rem 0.5rem;
 }
+.mantine-Tabs-tabsListWrapper {
+    position: sticky;
+    top: 0;
+    background: #F8F8F9;
+    z-index: 10;
+}
+body[data-theme="dark"] .mantine-Tabs-tabsListWrapper {
+    background: #1F2023;
+}
