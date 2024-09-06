@@ -43,7 +43,7 @@ def make_comparison_figure(  # pylint: disable = too-many-locals
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             font_color="rgb(128, 128, 128)",
-            legend=dict(y=-0.05, yanchor="top", orientation="h", x=1, xanchor="right"),
+            legend=dict(y=-0.1, yanchor="top", orientation="h", x=1, xanchor="right"),
             **{
                 f"yaxis{i}": dict(
                     title="Monthly ($)" if i == len(data_list) + 1 else None,

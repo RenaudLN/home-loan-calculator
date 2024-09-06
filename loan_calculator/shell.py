@@ -1,276 +1,257 @@
 import dash_mantine_components as dmc
-from dash import ALL, Input, Output, State, callback, clientside_callback, dcc, html
+from dash import ALL, MATCH, Input, Output, State, callback, clientside_callback, dcc, html, page_container
+from dash_iconify import DashIconify
+from dash_pydantic_form import ModelForm, fields
 
-from loan_calculator.aio_appshell import AppshellAIO
-from loan_calculator.components import number_input, timeline_input_item
+from loan_calculator.data_models import FutureExpenses, Project, RatesForecast
 
-
-def project_param(name: str):
-    """Project parameters"""
-    return {"type": "project-param", "id": name}
-
+PRIMARY_COLOR = "teal"
 
 class ids:  # pylint: disable = invalid-name
     """Home IDs"""
 
     # Project
-    property_value = project_param("property_value")
-    start_capital = project_param("start_capital")
-    monthly_income = project_param("monthly_income")
-    monthly_costs = project_param("monthly_costs")
-    start_date = project_param("settlement_date")
-    stamp_duty_rate = project_param("stamp_duty_rate")
-    add_rates_change = "add_rates_change"
-    rates_timeline = "rates_timeline"
-    rates_changes = "rates_changes"
-    rates_change_date_item = lambda i: {"type": "rate-change-date-item", "order": i}
-    rates_change_value_item = lambda i: {"type": "rate-change-value-item", "order": i}
-    rates_change_delete_item = lambda i: {"type": "rate-change-delete-item", "order": i}
-    expenses_timeline = "expenses_timeline"
-    add_expense = "add_expense"
-    expenses = "expenses"
-    expense_date_item = lambda i: {"type": "expense-date-item", "order": i}
-    expense_value_item = lambda i: {"type": "expense-value-item", "order": i}
-    expense_delete_item = lambda i: {"type": "expense-delete-item", "order": i}
+    theme_provider = "theme-provider"
+    theme_toggle = "theme-toggle"
+    theme_store = "theme-store"
+    project_wrapper = "project-wrapper"
+    url = "main-url"
     trigger = "dummy_trigger_btn"
 
+    @staticmethod
+    def data_store(name): return {"type": "data-store", "aio_id": name}
 
-appshell = AppshellAIO(
-    "Loan Calculator",
-    primary_color="teal",
-    sidebar_top_slot=[
-        dmc.Text("My Project", weight="bold", style={"lineHeight": "40px"}, size="sm"),
-        html.Div(
+
+def create_header():
+    return dmc.AppShellHeader(
+        px=25,
+        children=[
+            dmc.Group(
+                justify="space-between",
+                align="center",
+                h="100%",
+                children=[
+                    dmc.Group(
+                        [
+                            dmc.ActionIcon(
+                                DashIconify(
+                                    icon="radix-icons:hamburger-menu",
+                                    width=25,
+                                ),
+                                id="drawer-hamburger-button",
+                                variant="transparent",
+                                size="lg",
+                                hiddenFrom="lg",
+                            ),
+                            dmc.Anchor(
+                                [
+                                    dmc.Image(src="/assets/logo-light-theme.png", w=32, h=32, darkHidden=True, mt=-2),
+                                    dmc.Image(src="/assets/logo-dark-theme.png", w=32, h=32, lightHidden=True, mt=-2),
+                                    "Loan Calculator",
+                                ],
+                                size="xl",
+                                href="/",
+                                underline=False,
+                                style={"display": "flex", "alignItems": "center", "gap": "0.75rem"},
+                            ),
+                        ],
+                        gap="md",
+                    ),
+                    dmc.Group(
+                        justify="flex-end",
+                        h=31,
+                        gap="md",
+                        children=[
+                            dmc.ActionIcon(
+                                [
+                                    DashIconify(
+                                        icon="radix-icons:sun",
+                                        width=25,
+                                        id="light-theme-icon",
+                                    ),
+                                    DashIconify(
+                                        icon="radix-icons:moon",
+                                        width=25,
+                                        id="dark-theme-icon",
+                                    ),
+                                ],
+                                variant="transparent",
+                                color="yellow",
+                                id=ids.theme_toggle,
+                                size="lg",
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def create_navbar():
+    return dmc.AppShellNavbar(
+        dmc.ScrollArea(
+            offsetScrollbars=True,
+            type="scroll",
+            style={"height": "100%"},
+            children=dmc.Stack(
+                gap=0,
+                children=[
+                    dmc.Text("My Project", style={"lineHeight": "40px"}, size="sm", fw=600),
+                    html.Div(
+                        dmc.Skeleton(),
+                        id=ids.project_wrapper,
+                    ),
+                ],
+                p="2rem 1rem 0.5rem 1.5rem",
+            ),
+        )
+    )
+
+
+def create_navbar_drawer():
+    return dmc.Drawer(
+        id="components-navbar-drawer",
+        overlayProps={"opacity": 0.55, "blur": 3},
+        zIndex=1500,
+        offset=10,
+        radius="md",
+        withCloseButton=False,
+        size="75vw",
+        children=dmc.Skeleton(),
+        trapFocus=False,
+    )
+
+
+appshell = dmc.MantineProvider(
+    id=ids.theme_provider,
+    defaultColorScheme="auto",
+    theme={
+        "primaryColor": PRIMARY_COLOR,
+        "fontFamily": "'Inter', sans-serif",
+        "colors": {
+            "dark": [
+                "#f4f4f5",
+                "#e4e4e7",
+                "#d4d4d8",
+                "#a1a1aa",
+                "#71717a",
+                "#52525b",
+                "#3f3f46",
+                "#27272a",
+                "#18181b",
+                "#09090b",
+            ],
+        },
+    },
+    children=[
+        dcc.Store(id=ids.theme_store, storage_type="local"),
+        dcc.Location(id=ids.url, refresh="callback-nav"),
+        dmc.NotificationProvider(zIndex=2000),
+        html.Div(style={"display": "none"}, id=ids.trigger),
+        dmc.AppShell(
             [
-                number_input(
-                    id=ids.property_value,
-                    label="Property Value ($)",
-                    min=0,
-                    persistence=True,
-                    debounce=True,
-                ),
-                dmc.Space(h="sm"),
-                number_input(
-                    id=ids.start_capital,
-                    label="Initial Capital ($)",
-                    description="Amount of available capital for this purchase",
-                    min=0,
-                    persistence=True,
-                    debounce=True,
-                ),
-                dmc.Space(h="sm"),
-                number_input(
-                    id=ids.monthly_income,
-                    label="Monthly Income ($)",
-                    description="After-tax income",
-                    min=0,
-                    persistence=True,
-                    debounce=True,
-                ),
-                dmc.Space(h="sm"),
-                number_input(
-                    id=ids.monthly_costs,
-                    label="Monthly Costs ($)",
-                    description="Excludes loan repayment",
-                    min=0,
-                    persistence=True,
-                    debounce=True,
-                ),
-                dmc.Space(h="sm"),
-                dmc.DatePicker(
-                    id=ids.start_date,
-                    label="Settlement Date",
-                    allowFreeInput=True,
-                    persistence=True,
-                ),
-                dmc.Space(h="sm"),
-                number_input(
-                    id=ids.stamp_duty_rate,
-                    label="Stamp Duty Rate (%)",
-                    min=0,
-                    persistence=True,
-                    debounce=True,
-                ),
-                dmc.Space(h="sm"),
-                dmc.Accordion(
-                    [
-                        dmc.AccordionItem(
-                            label="Interest rates projection",
-                            children=[
-                                dmc.Text(
-                                    "Note: The rate changes should be relative to the current value.",
-                                    size="sm",
-                                    color="gray",
-                                ),
-                                dmc.Space(h="sm"),
-                                dmc.Timeline(id=ids.rates_timeline),
-                                dmc.Space(h="sm"),
-                                dmc.Button(
-                                    "Add rate change",
-                                    compact=True,
-                                    id=ids.add_rates_change,
-                                    style={"marginLeft": "2.25rem"},
-                                ),
-                            ],
-                        ),
-                        dmc.AccordionItem(
-                            label="Future expenses",
-                            children=[
-                                dmc.Text(
-                                    "Additional expenses not considered in the monthly costs, "
-                                    "e.g. a car or a wedding. Impacts the offset account balance.",
-                                    size="sm",
-                                    color="gray",
-                                ),
-                                dmc.Space(h="sm"),
-                                dmc.Timeline(id=ids.expenses_timeline),
-                                dmc.Space(h="md"),
-                                dmc.Button(
-                                    "Add expense",
-                                    compact=True,
-                                    id=ids.add_expense,
-                                    style={"marginLeft": "2.25rem"},
-                                ),
-                            ],
+                create_header(),
+                create_navbar(),
+                create_navbar_drawer(),
+                dmc.AppShellMain(children=page_container),
+            ],
+            header={"height": 56},
+            padding="xl",
+            zIndex=20,
+            navbar={
+                "width": 350,
+                "breakpoint": "lg",
+                "collapsed": {"mobile": True},
+            },
+        ),
+        *[
+            dcc.Store(id=ids.data_store(name), storage_type="local")
+            for name in ["project", "rates", "expenses"]
+        ]
+    ],
+)
+
+
+clientside_callback(
+    """
+    function(data) {
+        return data
+    }
+    """,
+    Output(ids.theme_provider, "forceColorScheme"),
+    Input(ids.theme_store, "data"),
+)
+
+clientside_callback(
+    """
+    function(n_clicks, data) {
+        return data === "dark" ? "light" : "dark";
+    }
+    """,
+    Output(ids.theme_store, "data"),
+    Input(ids.theme_toggle, "n_clicks"),
+    State(ids.theme_store, "data"),
+    prevent_initial_call=True,
+)
+
+@callback(
+    Output(ids.project_wrapper, "children"),
+    Input(ids.project_wrapper, "id"),
+    State(ids.data_store(ALL), "data"),
+)
+def update_project_wrapper(_, data_stores):
+    project_data, rates_data, expenses_data = data_stores
+    project = Project.model_construct(**(project_data or {}))
+    rates_forecast = RatesForecast.model_construct(**(rates_data or {}))
+    expenses = FutureExpenses.model_construct(**(expenses_data or {}))
+
+    return [
+        ModelForm(project, aio_id="project", form_id="sidebar", debounce_inputs=500),
+        dmc.Space(h="md"),
+        dmc.Accordion(
+            [
+                dmc.AccordionItem(
+                    value="rates",
+                    children=[
+                        dmc.AccordionControl("Interest rates projection", px="0.5rem"),
+                        dmc.AccordionPanel(
+                            ModelForm(
+                                rates_forecast,
+                                aio_id="rates",
+                                form_id="sidebar",
+                                debounce_inputs=500,
+                                fields_repr={"changes": fields.Table(table_height=200, title=" ")},
+                            ),
+                            px="0.5rem",
+                            pt="0.25rem",
                         ),
                     ],
                 ),
-            ]
+                dmc.AccordionItem(
+                    value="expenses",
+                    children=[
+                        dmc.AccordionControl("Future expenses", px="0.5rem"),
+                        dmc.AccordionPanel(
+                            ModelForm(
+                                expenses,
+                                aio_id="expenses",
+                                form_id="sidebar",
+                                debounce_inputs=500,
+                                fields_repr={"expenses": fields.Table(table_height=200, title=" ")},
+                            ),
+                            px="0.5rem",
+                            pt="0.25rem",
+                        ),
+                    ],
+                ),
+            ],
+            mx="-0.5rem",
         ),
-    ],
-    additional_themed_content=[
-        dcc.Store(id=ids.rates_changes, storage_type="local"),
-        dcc.Store(id=ids.expenses, storage_type="local"),
-        html.Button(style={"display": "none"}, id=ids.trigger),
-    ],
-)
-
-
-@callback(
-    Output(ids.rates_timeline, "children"),
-    Input(ids.rates_changes, "data"),
-    Input(ids.trigger, "n_clicks"),
-)
-def update_rates_timeline(rates_changes, trigger):  # pylint: disable = unused-argument
-    """Update the rates change timeline"""
-    if not rates_changes:
-        items = [
-            timeline_input_item(
-                date_id=ids.rates_change_date_item(i),
-                value_id=ids.rates_change_value_item(i),
-                delete_id=ids.rates_change_delete_item(i),
-                value_placeholder="Change (% p.a.)",
-                with_trend_bullet=True,
-            )
-            for i in range(2)
-        ]
-    else:
-        items = [
-            timeline_input_item(
-                date_id=ids.rates_change_date_item(i),
-                value_id=ids.rates_change_value_item(i),
-                delete_id=ids.rates_change_delete_item(i),
-                value_placeholder="Change (% p.a.)",
-                with_trend_bullet=True,
-                **change,
-            )
-            for i, change in enumerate(rates_changes)
-        ] + [
-            timeline_input_item(
-                date_id=ids.rates_change_date_item(1),
-                value_id=ids.rates_change_value_item(1),
-                delete_id=ids.rates_change_delete_item(1),
-                value_placeholder="Change (% p.a.)",
-                with_trend_bullet=True,
-            )
-        ] * (
-            len(rates_changes) == 1
-        )
-
-    return items
-
-
-@callback(
-    Output(ids.expenses_timeline, "children"),
-    Input(ids.expenses, "data"),
-    Input(ids.trigger, "n_clicks"),
-)
-def update_expenses_timeline(expenses, trigger):  # pylint: disable = unused-argument
-    """Update the rates change timeline"""
-    if not expenses:
-        items = [
-            timeline_input_item(
-                date_id=ids.expense_date_item(i),
-                value_id=ids.expense_value_item(i),
-                delete_id=ids.expense_delete_item(i),
-                value_placeholder="Cost ($)",
-            )
-            for i in range(2)
-        ]
-    else:
-        items = [
-            timeline_input_item(
-                date_id=ids.expense_date_item(i),
-                value_id=ids.expense_value_item(i),
-                delete_id=ids.expense_delete_item(i),
-                value_placeholder="Cost ($)",
-                **change,
-            )
-            for i, change in enumerate(expenses)
-        ] + [
-            timeline_input_item(
-                date_id=ids.expense_date_item(1),
-                value_id=ids.expense_value_item(1),
-                delete_id=ids.expense_delete_item(1),
-                value_placeholder="Cost ($)",
-            )
-        ] * (
-            len(expenses) == 1
-        )
-
-    return items
-
-
-save_timeline_values = """function(dates, values, deletes, add, current) {
-    const ctx = window.dash_clientside.callback_context
-    const no_update = window.dash_clientside.no_update
-    if (ctx.triggered.length !== 1) {
-        return no_update
-    }
-    if (ctx.triggered[0].prop_id.includes("add") && ctx.triggered[0].value != null) {
-        return [...(current || [{date: null, value: null}]), {date: null, value: null}]
-    }
-    if (ctx.triggered[0].prop_id.includes("delete") && ctx.triggered[0].value != null) {
-        const { order } = JSON.parse(ctx.triggered[0].prop_id.split(".")[0])
-        return current.filter((x, i) => i !== order)
-    }
-
-    const latest = dates.map((d, i) => ({date: d, value: values[i]}))
-    if (JSON.stringify(current) === JSON.stringify(latest)) {
-        return no_update
-    }
-
-    return latest
-}"""
-
+    ]
 
 clientside_callback(
-    save_timeline_values,
-    Output(ids.rates_changes, "data"),
-    Input(ids.rates_change_date_item(ALL), "value"),
-    Input(ids.rates_change_value_item(ALL), "value"),
-    Input(ids.rates_change_delete_item(ALL), "n_clicks"),
-    Input(ids.add_rates_change, "n_clicks"),
-    State(ids.rates_changes, "data"),
-)
-
-
-clientside_callback(
-    save_timeline_values,
-    Output(ids.expenses, "data"),
-    Input(ids.expense_date_item(ALL), "value"),
-    Input(ids.expense_value_item(ALL), "value"),
-    Input(ids.expense_delete_item(ALL), "n_clicks"),
-    Input(ids.add_expense, "n_clicks"),
-    State(ids.expenses, "data"),
+    """(val) => val""",
+    Output(ids.data_store(MATCH), "data"),
+    Input(ModelForm.ids.main(MATCH, "sidebar"), "data"),
 )

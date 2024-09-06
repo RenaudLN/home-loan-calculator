@@ -14,7 +14,7 @@ def number_input(
     """Re-build dmc NumberInput but with possible persistence"""
     return html.Div(
         [dmc.Text(label, style={"marginBottom": 4, "fontSize": "0.875rem"})]
-        + [dmc.Text(description, style={"marginBottom": 4, "marginTop": -4, "fontSize": "0.75rem"}, color="gray")]
+        + [dmc.Text(description, style={"marginBottom": 4, "marginTop": -4, "fontSize": "0.75rem"}, c="gray")]
         * bool(description)
         + [
             dcc.Input(type="number", id=id, **kwargs),
@@ -33,12 +33,12 @@ def table(df: pd.DataFrame, truncate: int = None, **kwargs) -> dmc.Table:
         )
     columns, values = df.columns, df.values
     header = [
-        html.Tr([html.Th(col, style={"textAlign": "left" if i == 0 else "right"}) for i, col in enumerate(columns)])
+        dmc.TableTr([dmc.TableTh(col, style={"textAlign": "left" if i == 0 else "right"}) for i, col in enumerate(columns)])
     ]
     rows = [
-        html.Tr(
+        dmc.TableTr(
             [
-                html.Td(
+                dmc.TableTd(
                     cell,
                     style={
                         "textAlign": "left" if i == 0 else "right",
@@ -51,7 +51,7 @@ def table(df: pd.DataFrame, truncate: int = None, **kwargs) -> dmc.Table:
         )
         for row in values
     ]
-    table_children = [html.Thead(header), html.Tbody(rows)]
+    table_children = [dmc.TableThead(header), dmc.TableTbody(rows)]
     return dmc.ScrollArea(
         dmc.Table(table_children, **kwargs), style={"paddingBottom": 12}, type="auto", offsetScrollbars=False
     )
@@ -70,24 +70,22 @@ def timeline_input_item(  # pylint: disable = too-many-arguments
     bullet = None
     if with_trend_bullet and value is not None:
         if value > 0:
-            bullet = [DashIconify(icon="carbon:caret-up", color="red", height=20)]
+            bullet = DashIconify(icon="carbon:caret-up", color="red", height=20)
         elif value < 0:
-            bullet = [DashIconify(icon="carbon:caret-down", color="lime", height=20)]
+            bullet = DashIconify(icon="carbon:caret-down", color="lime", height=20)
         else:
-            bullet = [DashIconify(icon="carbon:subtract", color="blue", height=20)]
+            bullet = DashIconify(icon="carbon:subtract", color="blue", height=20)
 
     return dmc.TimelineItem(
         html.Div(
             [
                 html.Div(
                     [
-                        dmc.DatePicker(
+                        dmc.DateInput(
                             placeholder="Date",
                             value=date,
                             id=date_id,
-                            inputFormat="YYYY-MM",
                             size="xs",
-                            allowFreeInput=True,
                             clearable=False,
                         ),
                         dmc.Space(h="xs"),
@@ -105,7 +103,7 @@ def timeline_input_item(  # pylint: disable = too-many-arguments
                 html.Div(
                     dmc.Button(
                         DashIconify(icon="carbon:close"),
-                        compact=True,
+                        size="compact-md",
                         variant="subtle",
                         color="red",
                         style={"padding": "0 4px"},

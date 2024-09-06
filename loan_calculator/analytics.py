@@ -1,76 +1,26 @@
-from typing import List, Optional, Tuple, Union
+from datetime import date
 
 import numpy as np
 import pandas as pd
 from numba import njit
 
-
-def get_loan_data(  # pylint: disable = too-many-locals
-    loan: dict, rates_change: List[dict], expenses: List[dict]
-) -> Tuple[Optional[pd.DataFrame], Optional[bool]]:
-    """Ensure all the required data is present then compute the loan timeseries"""
-    settlement_date = loan.get("settlement_date")
-    property_value = loan.get("property_value")
-    annual_rate = loan.get("annual_rate")
-    borrowed_share = loan.get("borrowed_share")
-    loan_duration_years = loan.get("loan_duration_years")
-    start_capital = loan.get("start_capital")
-    stamp_duty_rate = loan.get("stamp_duty_rate")
-    monthly_income = loan.get("monthly_income")
-    monthly_costs = loan.get("monthly_costs")
-    yearly_fees = loan.get("yearly_fees")
-    with_fixed_rate = loan.get("with_fixed_rate")
-    fixed_rate = loan.get("fixed_rate")
-    fixed_rate_duration = loan.get("fixed_rate_duration")
-
-    if not all(
-        [
-            property_value is not None,
-            annual_rate is not None,
-            borrowed_share is not None,
-            loan_duration_years is not None,
-            start_capital is not None,
-            stamp_duty_rate is not None,
-            monthly_income is not None,
-            monthly_costs is not None,
-            yearly_fees is not None,
-            settlement_date is not None,
-        ]
-    ):
-        return None, None
-
-    if with_fixed_rate and not all([fixed_rate, fixed_rate_duration]):
-        return None, None
-
-    return compute_loan_timeseries(**loan, rates_change=rates_change, expenses=expenses)
+from loan_calculator.data_models import FutureExpenses, Offer, Project, RatesForecast
 
 
 def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-locals, unused-argument
     *,
-    property_value: float,
-    annual_rate: float,
-    borrowed_share: float,
-    loan_duration_years: float,
-    start_capital: float,
-    stamp_duty_rate: float,
-    monthly_income: float,
-    monthly_costs: float,
-    with_offset_account: float,
-    yearly_fees: float,
-    settlement_date: Union[str, pd.Timestamp],
-    rates_change: List[dict],
-    expenses: List[dict],
-    with_fixed_rate: bool = False,
-    fixed_rate: float = None,
-    fixed_rate_duration: int = None,
+    project: Project,
+    offer: Offer,
+    rates_change: RatesForecast,
+    expenses: FutureExpenses,
     **kwargs,
-) -> Tuple[pd.DataFrame, bool]:
+) -> tuple[pd.DataFrame, bool]:
     """Compute the loan timeseries
 
     :param property_value: Property value in $
-    :param annual_rate: Annual loan rate in %
+    :param rate: Annual loan rate in %
     :param borrowed_share: Borrowed share in %
-    :param loan_duration_years: Load duration in years
+    :param loan_duration: Load duration in years
     :param start_capital: Starting capital in $
     :param stamp_duty_rate: Stamp duty rate in %
     :param monthly_income: After-tax monthly income in $
@@ -83,33 +33,34 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
 
     # Define the loan period
     date_period = pd.date_range(
-        settlement_date,
-        f"{pd.Timestamp(settlement_date).year + loan_duration_years}-{pd.Timestamp(settlement_date).strftime('%m-%d')}",
+        project.settlement_date,
+        f"{pd.Timestamp(project.settlement_date).year + offer.loan_duration}-{pd.Timestamp(project.settlement_date).strftime('%m-%d')}",
         freq="MS",
         inclusive="left",
     )
 
     # Define the loan princpal
-    principal = property_value * borrowed_share / 100
+    principal = project.property_value * offer.borrowed_share / 100
 
     # Define how much savings can be left in the offset account after deposit + stamp duty
     start_offset = (
-        start_capital - property_value * (100 - borrowed_share + stamp_duty_rate) / 100
-    ) * with_offset_account
+        project.start_capital - project.property_value * (100 - offer.borrowed_share + project.stamp_duty_rate) / 100
+    ) * offer.with_offset_account
 
     # Define the monthly loan rate and fee
     monthly_rate = get_monthly_rate_series(
         date_period=date_period,
-        annual_rate=annual_rate,
+        rate=offer.rate,
         rates_change=rates_change,
-        with_fixed_rate=with_fixed_rate,
-        fixed_rate=fixed_rate,
-        fixed_rate_duration=fixed_rate_duration,
-        settlement_date=settlement_date,
+        with_fixed_rate=offer.with_fixed_rate,
+        fixed_rate=offer.fixed_rate,
+        fixed_rate_duration=offer.fixed_rate_duration,
+        settlement_date=project.settlement_date,
     )
-    monthly_fee = yearly_fees / 12
+    monthly_fee = offer.yearly_fees / 12
 
     expenses_series = get_expenses_series(date_period=date_period, expenses=expenses)
+    print(expenses_series.loc["2026"])
 
     repayments = np.c_[
         calculate_repayments(
@@ -117,10 +68,10 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
             start_offset,
             principal,
             monthly_fee,
-            monthly_income,
-            monthly_costs,
+            project.monthly_income,
+            project.monthly_costs,
             expenses_series.to_numpy(),
-            with_offset_account,
+            offer.with_offset_account,
         )
     ]
     data = pd.DataFrame(
@@ -135,10 +86,10 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
         ],
         index=date_period,
     ).assign(deposit=0, stamp_duty=0)
-    data.at[data.index[0], "deposit"] = property_value * (100 - borrowed_share) / 100
-    data.at[data.index[0], "stamp_duty"] = property_value * (stamp_duty_rate) / 100
+    data.at[data.index[0], "deposit"] = project.property_value * (100 - offer.borrowed_share) / 100
+    data.at[data.index[0], "stamp_duty"] = project.property_value * (project.stamp_duty_rate) / 100
 
-    feasible = start_capital >= property_value * (100 - borrowed_share + stamp_duty_rate) / 100
+    feasible = project.start_capital >= project.property_value * (100 - offer.borrowed_share + project.stamp_duty_rate) / 100
 
     return data, feasible
 
@@ -207,21 +158,23 @@ def calculate_repayments(  # pylint: disable = too-many-arguments, too-many-loca
 def get_monthly_rate_series(
     *,
     date_period: pd.DatetimeIndex,
-    annual_rate: float,
-    rates_change: List[dict],
+    rate: float,
+    rates_change: RatesForecast,
     with_fixed_rate: bool = False,
     fixed_rate: float = None,
     fixed_rate_duration: int = None,
-    settlement_date: Union[str, pd.Timestamp],
+    settlement_date: str | date | pd.Timestamp,
 ):
     """Create the monthly rate time series"""
     # Define the monthly loan rate and fee
-    annual_rate_pct = pd.Series(annual_rate, index=date_period)
-    if rates_change:
+    rate_pct = pd.Series(rate, index=date_period)
+    if rates_change.changes:
         rate_change = (
-            pd.DataFrame(rates_change).assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
+            pd.DataFrame([rates_change.model_dump()["changes"]])
+            .dropna()
+            .assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
         )
-        annual_rate_pct += (
+        rate_pct += (
             rate_change.reindex(set(date_period).union(rate_change.index)).resample("MS").asfreq().ffill().fillna(0)
         )
     if with_fixed_rate:
@@ -229,19 +182,20 @@ def get_monthly_rate_series(
             f"{pd.Timestamp(settlement_date).year + fixed_rate_duration}-"
             f"{pd.Timestamp(settlement_date).strftime('%m-%d')}"
         ) - pd.Timedelta("1D")
-        annual_rate_pct.loc[:fixed_rate_end] = fixed_rate
+        rate_pct.loc[:fixed_rate_end] = fixed_rate
 
-    monthly_rate = annual_rate_pct / 12 / 100
+    monthly_rate = rate_pct / 12 / 100
 
     return monthly_rate
 
 
-def get_expenses_series(*, date_period: pd.DatetimeIndex, expenses: List[dict]):
+def get_expenses_series(*, date_period: pd.DatetimeIndex, expenses: FutureExpenses):
     """Create the time series of extra expenses"""
-    if expenses:
+    if expenses.expenses:
         return (
-            pd.DataFrame(expenses)
-            .assign(date=lambda df: pd.to_datetime(df["date"]))
+            pd.DataFrame(expenses.model_dump()["expenses"])
+            .dropna()
+            .assign(date=lambda df: pd.to_datetime(df["date"]) + pd.offsets.MonthBegin())
             .set_index("date")["value"]
             .reindex(date_period)
             .fillna(0)

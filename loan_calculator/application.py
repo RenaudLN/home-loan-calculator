@@ -1,6 +1,9 @@
-from dash import Dash
+import dash_mantine_components as dmc
+from dash import Dash, _dash_renderer
 
 from loan_calculator.shell import appshell
+
+_dash_renderer._set_react_version("18.2.0")
 
 app = Dash(
     __name__,
@@ -9,6 +12,7 @@ app = Dash(
         {"name": "viewport", "content": "width=device-width, initial-scale=1, shrink-to-fit=no"},
     ],
     use_pages=True,
+    external_stylesheets=dmc.styles.ALL,
 )
 app.config.suppress_callback_exceptions = True
 app.css.config.serve_locally = True

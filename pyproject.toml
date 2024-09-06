@@ -17,6 +17,8 @@ dependencies = [
     "pandas",
     "plotly",
     "numba",
+    "dash_pydantic_form",
+    "pydantic",
 ]
 
 [project.optional-dependencies]

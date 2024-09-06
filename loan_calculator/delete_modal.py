@@ -33,7 +33,7 @@ def modal_content(name: str = None):
                 "There is no going back.",
                 title=f"Do you want to delete this offer: {name}?",
                 color="red",
-                icon=[DashIconify(icon="carbon:delete")],
+                icon=DashIconify(icon="carbon:delete"),
             ),
             html.Div(
                 dmc.Button("Confirm Deletion", id=ids.delete_button(name), color="red", variant="outline"),

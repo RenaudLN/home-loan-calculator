@@ -352,3 +352,16 @@ body[data-theme="dark"] input[type="number"]::placeholder {
 body[data-theme="dark"] .mantine-Tabs-tabsListWrapper {
     background: #1F2023;
 }
+
+@media (min-width: 600px) {
+
+    div:not(:hover)>.hover-visible {
+        opacity: 0;
+        transition: opacity 200ms ease 0s;
+    }
+
+    div:hover>.hover-visible {
+        opacity: 1;
+        transition: opacity 100ms ease 0s;
+    }
+}
