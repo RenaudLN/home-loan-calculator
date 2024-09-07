@@ -1,8 +1,11 @@
 from typing import List
 
+import dash_mantine_components as dmc
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
+from dash import dcc
 from plotly.subplots import make_subplots
 
 COLOR_DEPOSIT = "rgb(240, 145, 23)"
@@ -12,6 +15,137 @@ COLOR_INTEREST = "rgb(132, 94, 247)"
 COLOR_PRINCIPAL = "rgb(92, 124, 250)"
 COLOR_OFFSET = "rgb(32, 201, 151)"
 
+
+SERIES_CUMULATIVE = {
+    "deposit": {"color": "#fd7e14", "label": "Deposit"},
+    "stamp_duty": {"color": "#fab005", "label": "Stamp duty"},
+    "interest": {"color": "#be4bdb", "label": "Interest"},
+    "fee": {"color": "#e64980", "label": "Fees"},
+    "principal_payment": {"color": "#4c6ef5", "label": "Principal"},
+}
+SERIES_MONTHLY = {
+    "interest": {"color": "#be4bdb", "label": "Interest"},
+    "fee": {"color": "#e64980", "label": "Fees"},
+    "principal_payment": {"color": "#4c6ef5", "label": "Principal"},
+}
+SERIES_OFFSET = {"color": "#12b886", "label": "Offset account"}
+BASE_LAYOUT = {
+    "hovermode": "x unified",
+    "hoverlabel": {"bgcolor": "rgba(0, 0, 0, 0.8)", "font_color": "#fff"},
+    "paper_bgcolor": "rgba(0,0,0,0)",
+    "plot_bgcolor": "rgba(0,0,0,0)",
+    "font": {"color": "var(--plot-font-color)", "family": "'Inter', sans-serif"},
+    "legend": {
+        "y": 1.05,
+        "yanchor": "bottom",
+        "orientation": "h",
+        "x": 1,
+        "xanchor": "right",
+        "title": None,
+    },
+    "xaxis_showgrid": False,
+    "yaxis_gridwidth": 2,
+    "yaxis_gridcolor": "rgb(128, 128, 128)",
+    "yaxis_zerolinecolor": "rgb(128, 128, 128)",
+    "yaxis_griddash": "dash",
+    "yaxis_ticklabelstandoff": 8,
+    "xaxis_title": None,
+    "margin": {"b": 10, "l": 10, "r": 10, "t": 10},
+}
+
+
+def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, feasible_list: list[bool] = None):
+    cumulative_data = [
+        data[list(SERIES_CUMULATIVE)].cumsum()
+        .round(2)
+        .rename_axis(index="date")
+        .reset_index()
+        for data in data_list
+    ]
+    cumulative_y_max = 1.05 * max(x.drop(columns="date").sum(axis=1).max() for x in cumulative_data)
+    monthly_y_max = 1.05 * max(x[list(SERIES_MONTHLY)].sum(axis=1).max() for x in data_list)
+    text_interval_years = 5
+    text_interval_months = text_interval_years * 12
+    return dmc.SimpleGrid(
+        [
+            dmc.Paper(
+                radius="md",
+                p="1rem",
+                children=dmc.Stack(
+                    [
+                        dmc.Text(title, size="md", fw=600),
+                        dcc.Graph(
+                            figure=px.area(
+                                cdata.rename(columns={k: v["label"] for k, v in SERIES_CUMULATIVE.items()}),
+                                x="date",
+                                y=[v["label"] for v in SERIES_CUMULATIVE.values()],
+                                color_discrete_map={v["label"]: v["color"] for v in SERIES_CUMULATIVE.values()},
+                                height=300,
+                            )
+                            .update_layout(
+                                BASE_LAYOUT,
+                                yaxis_title="Cumulative ($)",
+                                yaxis_autorangeoptions={"include": [0, cumulative_y_max]},
+                            )
+                            .add_traces(
+                                px.line(data[["offset"]].where(data["interest"] > 0, None).ffill().rename_axis(index="date").reset_index(), x="date", y="offset", color_discrete_sequence=[SERIES_OFFSET["color"]])
+                                .update_traces(name=SERIES_OFFSET["label"], showlegend=True)
+                                .data
+                            )
+                            .add_scatter(
+                                x=cdata["date"],
+                                y=cdata.drop(columns="date").sum(axis=1),
+                                name="Total",
+                                showlegend=False,
+                                line=dict(color="rgba(0,0,0,0)"),
+                            )
+                            .update_traces(hovertemplate="$%{y:.3s}")
+                            .add_scatter(
+                                x=cdata.iloc[text_interval_months - 1 :: text_interval_months]["date"],
+                                y=cdata.drop(columns="date").sum(axis=1).iloc[text_interval_months - 1 :: text_interval_months],
+                                texttemplate="%{y:.3s}",
+                                showlegend=False,
+                                mode="text",
+                                textposition="top center",
+                                textfont=dict(size=12, color="#888"),
+                                hoverinfo="skip",
+                            )
+                            ,
+                            responsive=True,
+                            style={"height": 300},
+                            config={"displayModeBar": False},
+                        ),
+                        dcc.Graph(
+                            figure=px.area(
+                                data[list(SERIES_MONTHLY)].rename_axis(index="date").reset_index(),
+                                x="date",
+                                y=list(SERIES_MONTHLY),
+                                color_discrete_map={k: v["color"] for k, v in SERIES_MONTHLY.items()},
+                                height=300,
+                            )
+                            .update_layout(
+                                BASE_LAYOUT,
+                                yaxis_title="Monthly ($)",
+                                yaxis_autorangeoptions={"include": [0, monthly_y_max]},
+                            )
+                            .update_traces(hovertemplate="$%{y:.3s}")
+                            ,
+                            responsive=True,
+                            style={"height": 300},
+                            config={"displayModeBar": False},
+                        ),
+                    ],
+                    style={"flex": 1},
+                    gap="xs",
+                )
+            )
+            for data, cdata, title in zip(data_list, cumulative_data, title_list)
+        ],
+        cols={"base": 1, "lg": len(data_list)},
+        mt="1rem",
+        spacing="lg",
+    )
+px.line
 
 def make_comparison_figure(  # pylint: disable = too-many-locals
     data_list: List[pd.DataFrame], title_list: List[str] = None, feasible_list: List[bool] = None

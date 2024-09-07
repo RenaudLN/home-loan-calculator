@@ -53,7 +53,7 @@ def layout():
                     dmc.TabsPanel(offers_comparison(), value="comparison"),
                 ],
                 style={"maxWidth": "1200px", "margin": "0 auto"},
-                value="my_offers",
+                value="comparison",
             ),
             dcc.Store(id=ids.loans, storage_type="local"),
             loan_modal.layout(),
@@ -306,7 +306,8 @@ def compute_loan(
     if not data_list:
         return no_update
 
-    fig = plots.make_comparison_figure(data_list, title_list, feasible_list)
+    # fig = plots.make_comparison_figure(data_list, title_list, feasible_list)
+    fig = plots.make_dmc_chart(data_list, title_list, feasible_list)
 
     table_data = (
         pd.DataFrame(
@@ -343,7 +344,8 @@ def compute_loan(
     return [
         dmc.Paper(table(table_data, striped=True), px="sm", pt="sm"),
         dmc.Space(h="md"),
-        dcc.Graph(figure=fig, responsive=True, config={"displayModeBar": False}),
+        fig,
+        # dcc.Graph(figure=fig, responsive=True, config={"displayModeBar": False}),
     ]
 
 

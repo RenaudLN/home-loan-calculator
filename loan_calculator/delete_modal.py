@@ -7,7 +7,9 @@ class ids:  # pylint: disable = invalid-name
     """Loan modal IDs"""
 
     modal = "delete_modal"
-    delete_button = lambda name: {"type": "delete-button", "name": name}
+
+    @staticmethod
+    def delete_button(name): return {"type": "delete-button", "name": name}
 
 
 def layout():

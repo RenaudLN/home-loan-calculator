@@ -60,7 +60,6 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     monthly_fee = offer.yearly_fees / 12
 
     expenses_series = get_expenses_series(date_period=date_period, expenses=expenses)
-    print(expenses_series.loc["2026"])
 
     repayments = np.c_[
         calculate_repayments(

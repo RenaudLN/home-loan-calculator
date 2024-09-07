@@ -1,5 +1,5 @@
 import dash_mantine_components as dmc
-from dash import MATCH, Input, Output, clientside_callback, html
+from dash import html
 from dash_iconify import DashIconify
 from dash_pydantic_form import ModelForm
 
@@ -10,7 +10,9 @@ class ids:  # pylint: disable = invalid-name
     """Offer modal IDs"""
 
     modal = "loan_modal"
-    save = lambda name: {"type": "save-offer", "name": name}
+    
+    @staticmethod
+    def save(name): return {"type": "save-offer", "name": name}
 
 
 def layout(name: str = "__new__", **kwargs):

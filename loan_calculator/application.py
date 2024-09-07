@@ -1,7 +1,7 @@
 import dash_mantine_components as dmc
 from dash import Dash, _dash_renderer
 
-from loan_calculator.shell import appshell
+from loan_calculator.shell import create_appshell
 
 _dash_renderer._set_react_version("18.2.0")
 
@@ -20,7 +20,7 @@ app.scripts.config.serve_locally = True
 server = app.server
 
 
-app.layout = appshell
+app.layout = create_appshell()
 
 
 if __name__ == "__main__":

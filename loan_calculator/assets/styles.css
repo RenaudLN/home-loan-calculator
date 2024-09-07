@@ -365,3 +365,31 @@ body[data-theme="dark"] .mantine-Tabs-tabsListWrapper {
         transition: opacity 100ms ease 0s;
     }
 }
+
+[data-mantine-color-scheme="dark"] {
+    .xtick text,
+    .ytick text,
+    .legend text,
+    .g-xtitle text,
+    .g-ytitle text {
+        fill: #EEEEEE !important;
+    }
+
+    .xgrid, .ygrid {
+        stroke: #888888 !important
+    }
+}
+
+[data-mantine-color-scheme="light"] {
+    .xtick text,
+    .ytick text,
+    .legend text,
+    .g-xtitle text,
+    .g-ytitle text {
+        fill: #333333 !important;
+    }
+
+    .xgrid, .ygrid {
+        stroke: #AAAAAA !important
+    }
+}
