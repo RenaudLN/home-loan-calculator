@@ -62,7 +62,7 @@ class ids:
     @staticmethod
     def chart(metric, name):
         return {"type": "chart", "metric": metric, "name": name}
-    
+
     @staticmethod
     def legenditem(metric, name, item):
         return {"type": "legenditem", "metric": metric, "name": name, "item": item}
@@ -77,7 +77,7 @@ def create_legend_item(label: str, color: str, metric: str, name: str, active: b
         id=ids.legenditem(metric, name, label),
         gap="0.5rem",
         align="center",
-        opacity=1 if active else 0.33,
+        className="legend-item" + (" active" if active else ""),
     )
 
 
@@ -132,7 +132,7 @@ def make_dmc_chart(
                                     (data["offset"] != 0).any(),
                                 )
                             ],
-                            gap="0.5rem 1.25rem",
+                            gap="0.25rem",
                             justify="end",
                             mb="-0.5rem",
                         ),
@@ -191,7 +191,7 @@ def make_dmc_chart(
                                 )
                                 for v in SERIES_MONTHLY.values()
                             ],
-                            gap="0.5rem 1.25rem",
+                            gap="0.25rem",
                             justify="end",
                             mb="-0.5rem",
                         ),
@@ -215,7 +215,7 @@ def make_dmc_chart(
                                 showlegend=False,
                                 line=dict(color="rgba(0,0,0,0)"),
                             )
-                            .update_traces(hovertemplate="$%{y:.3s}", line_shape="hvh")
+                            .update_traces(hovertemplate="$%{y:.3s}")
                             ,
                             responsive=True,
                             style={"height": 300},

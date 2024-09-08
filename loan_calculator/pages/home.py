@@ -430,12 +430,11 @@ clientside_callback(
     """(id, chartId, figure) => {
         const el = document.getElementById(JSON.stringify(id, Object.keys(id).sort()))
 
-        const rgbToOpacity = (rgb, alpha) => rgb.replace(/[\d\.]+\)$/g, `${alpha})`)
-        const hexToRGB = (hex, alpha) => {
-            if (hex.startsWith("rgb")) return rgbToOpacity(hex, alpha)
-            var r = parseInt(hex.slice(1, 3), 16),
-                g = parseInt(hex.slice(3, 5), 16),
-                b = parseInt(hex.slice(5, 7), 16);
+        const toOpacity = (color, alpha) => {
+            if (color.startsWith("rgb")) return color.replace(/[\d\.]+\)$/g, `${alpha})`)
+            var r = parseInt(color.slice(1, 3), 16),
+                g = parseInt(color.slice(3, 5), 16),
+                b = parseInt(color.slice(5, 7), 16);
 
             if (alpha) {
                 return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
@@ -445,14 +444,15 @@ clientside_callback(
         }
 
         el.onmouseenter = (e) => {
+            if (el.classList.contains("hidden") || !el.classList.contains("active")) return
             const newFigure = {...figure}
             newFigure.data.forEach(trace => {
                 if (trace.name !== id.item && trace.line?.color && trace.name !== "Total") {
-                    trace.fillcolor = hexToRGB(trace.line.color, 0.1)
-                    trace.line.color = hexToRGB(trace.line.color, 0.5)
+                    trace.fillcolor = toOpacity(trace.line.color, 0.1)
+                    trace.line.color = toOpacity(trace.line.color, 0.5)
                 } else if (trace.name === id.item && trace.name !== "Total") {
-                    trace.fillcolor = hexToRGB(trace.line.color, 0.5)
-                    trace.line.color = hexToRGB(trace.line.color, 1)
+                    trace.fillcolor = toOpacity(trace.line.color, 0.5)
+                    trace.line.color = toOpacity(trace.line.color, 1)
                 }
             })
             dash_clientside.set_props(chartId, {figure: newFigure})
@@ -462,12 +462,28 @@ clientside_callback(
             const newFigure = {...figure}
             newFigure.data.forEach(trace => {
                 if (trace.line?.color && trace.name !== "Total") {
-                    trace.fillcolor = hexToRGB(trace.line.color, 0.5)
-                    trace.line.color = hexToRGB(trace.line.color, 1)
+                    trace.fillcolor = toOpacity(trace.line.color, 0.5)
+                    trace.line.color = toOpacity(trace.line.color, 1)
                 }
             })
             dash_clientside.set_props(chartId, {figure: newFigure})
         }
+
+        el.onclick = (e) => {
+            const newFigure = {...figure}
+            newFigure.data.forEach(trace => {
+                if (trace.name === id.item) {
+                    trace.visible = el.classList.contains("hidden")
+                }
+            })
+            if (el.classList.contains("hidden")) {
+                el.classList.remove("hidden")
+            } else {
+                el.classList.add("hidden")
+            }
+            dash_clientside.set_props(chartId, {figure: newFigure})
+        }
+
         return dash_clientside.no_update
     }""",
     Output(plots.ids.legenditem(MATCH, MATCH, MATCH), "grow"),

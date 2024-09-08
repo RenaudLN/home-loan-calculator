@@ -154,3 +154,33 @@ body[data-theme="dark"] {
         stroke: var(--mantine-color-gray-6) !important;
     }
 }
+.legend-item {
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    cursor: pointer;
+    transition: background-color 250ms ease;
+    opacity: 0.33;
+
+    &.active {
+        opacity: 1;
+    }
+
+    &.active.hidden {
+        opacity: 0.5;
+    }
+
+    &.active:hover {
+        background: var(--mantine-color-gray-1);
+    }
+
+    [data-mantine-color-scheme="dark"] &.active:hover {
+        background: var(--mantine-color-gray-8);
+    }
+}
+div:has(>.legend-item.active:not(.hidden):hover)>.legend-item:not(:hover) {
+    opacity: 0.2;
+
+    &.active {
+        opacity: 0.5;
+    }
+}
