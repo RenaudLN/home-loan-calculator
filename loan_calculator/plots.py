@@ -62,14 +62,19 @@ class ids:
     @staticmethod
     def chart(metric, name):
         return {"type": "chart", "metric": metric, "name": name}
+    
+    @staticmethod
+    def legenditem(metric, name, item):
+        return {"type": "legenditem", "metric": metric, "name": name, "item": item}
 
 
-def create_legend_item(label: str, color: str, active: bool = True):
+def create_legend_item(label: str, color: str, metric: str, name: str, active: bool = True):
     return dmc.Group(
         [
             dmc.Box(h=12, w=12, bg=color, style={"borderRadius": "50%"}, mt="-0.25rem"),
-            dmc.Text(label)
+            dmc.Text(label),
         ],
+        id=ids.legenditem(metric, name, label),
         gap="0.5rem",
         align="center",
         opacity=1 if active else 0.33,
@@ -108,8 +113,25 @@ def make_dmc_chart(
                     [
                         dmc.Text(title, size="md", fw=600, c="yellow.6"),
                         dmc.Group(
-                            [create_legend_item(v["label"], v["color"], (data[k] != 0).any()) for k, v in SERIES_CUMULATIVE.items()]
-                            + [create_legend_item(SERIES_OFFSET["label"], SERIES_OFFSET["color"], (data["offset"] != 0).any())],
+                            [
+                                create_legend_item(
+                                    v["label"],
+                                    v["color"],
+                                    "cumulative",
+                                    title,
+                                    (data[k] != 0).any()
+                                )
+                                for k, v in SERIES_CUMULATIVE.items()
+                            ]
+                            + [
+                                create_legend_item(
+                                    SERIES_OFFSET["label"],
+                                    SERIES_OFFSET["color"],
+                                    "cumulative",
+                                    title,
+                                    (data["offset"] != 0).any(),
+                                )
+                            ],
                             gap="0.5rem 1.25rem",
                             justify="end",
                             mb="-0.5rem",
@@ -160,7 +182,15 @@ def make_dmc_chart(
                             clear_on_unhover=True,
                         ),
                         dmc.Group(
-                            [create_legend_item(v["label"], v["color"]) for v in SERIES_MONTHLY.values()],
+                            [
+                                create_legend_item(
+                                    v["label"],
+                                    v["color"],
+                                    "monthly",
+                                    title,
+                                )
+                                for v in SERIES_MONTHLY.values()
+                            ],
                             gap="0.5rem 1.25rem",
                             justify="end",
                             mb="-0.5rem",

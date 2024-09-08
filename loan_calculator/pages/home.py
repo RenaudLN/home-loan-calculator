@@ -425,3 +425,53 @@ clientside_callback(
     State(plots.ids.chart(MATCH, ALL), "id"),
     prevent_initial_call=True,
 )
+
+clientside_callback(
+    """(id, chartId, figure) => {
+        const el = document.getElementById(JSON.stringify(id, Object.keys(id).sort()))
+
+        const rgbToOpacity = (rgb, alpha) => rgb.replace(/[\d\.]+\)$/g, `${alpha})`)
+        const hexToRGB = (hex, alpha) => {
+            if (hex.startsWith("rgb")) return rgbToOpacity(hex, alpha)
+            var r = parseInt(hex.slice(1, 3), 16),
+                g = parseInt(hex.slice(3, 5), 16),
+                b = parseInt(hex.slice(5, 7), 16);
+
+            if (alpha) {
+                return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+            } else {
+                return "rgb(" + r + ", " + g + ", " + b + ")";
+            }
+        }
+
+        el.onmouseenter = (e) => {
+            const newFigure = {...figure}
+            newFigure.data.forEach(trace => {
+                if (trace.name !== id.item && trace.line?.color && trace.name !== "Total") {
+                    trace.fillcolor = hexToRGB(trace.line.color, 0.1)
+                    trace.line.color = hexToRGB(trace.line.color, 0.5)
+                } else if (trace.name === id.item && trace.name !== "Total") {
+                    trace.fillcolor = hexToRGB(trace.line.color, 0.5)
+                    trace.line.color = hexToRGB(trace.line.color, 1)
+                }
+            })
+            dash_clientside.set_props(chartId, {figure: newFigure})
+        }
+
+        el.onmouseleave = (e) => {
+            const newFigure = {...figure}
+            newFigure.data.forEach(trace => {
+                if (trace.line?.color && trace.name !== "Total") {
+                    trace.fillcolor = hexToRGB(trace.line.color, 0.5)
+                    trace.line.color = hexToRGB(trace.line.color, 1)
+                }
+            })
+            dash_clientside.set_props(chartId, {figure: newFigure})
+        }
+        return dash_clientside.no_update
+    }""",
+    Output(plots.ids.legenditem(MATCH, MATCH, MATCH), "grow"),
+    Input(plots.ids.legenditem(MATCH, MATCH, MATCH), "id"),
+    State(plots.ids.chart(MATCH, MATCH), "id"),
+    State(plots.ids.chart(MATCH, MATCH), "figure"),
+)
