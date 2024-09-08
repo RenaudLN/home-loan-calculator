@@ -1,4 +1,5 @@
-from typing import List
+from copy import deepcopy
+from typing import Literal
 
 import dash_mantine_components as dmc
 import numpy as np
@@ -17,8 +18,8 @@ COLOR_OFFSET = "rgb(32, 201, 151)"
 
 
 SERIES_CUMULATIVE = {
-    "deposit": {"color": "#fd7e14", "label": "Deposit"},
-    "stamp_duty": {"color": "#fab005", "label": "Stamp duty"},
+    "deposit": {"color": "#12b886", "label": "Deposit"},
+    "stamp_duty": {"color": "#ff922b", "label": "Stamp duty"},
     "principal_payment": {"color": "#4c6ef5", "label": "Principal"},
     "interest": {"color": "#be4bdb", "label": "Interest"},
     "fee": {"color": "#e64980", "label": "Fees"},
@@ -28,33 +29,52 @@ SERIES_MONTHLY = {
     "interest": {"color": "#be4bdb", "label": "Interest"},
     "fee": {"color": "#e64980", "label": "Fees"},
 }
-SERIES_OFFSET = {"color": "#12b886", "label": "Offset account"}
+SERIES_OFFSET = {"color": "#fab005", "label": "Offset account"}
 BASE_LAYOUT = {
     "hovermode": "x unified",
-    "hoverlabel": {"bgcolor": "rgba(0, 0, 0, 0.8)", "font_color": "#fff"},
+    "hoverlabel": {
+        "bgcolor": "rgba(0, 0, 0, 0.8)",
+        "font_color": "#fff",
+        "bordercolor": "rgba(0, 0, 0, 0.8)",
+        "font_size": 14,
+    },
     "paper_bgcolor": "rgba(0,0,0,0)",
     "plot_bgcolor": "rgba(0,0,0,0)",
     "font": {"color": "var(--plot-font-color)", "family": "'Inter', sans-serif"},
-    "legend": {
-        "y": 1.1,
-        "yanchor": "bottom",
-        "orientation": "h",
-        "x": 1,
-        "xanchor": "right",
-        "title": None,
-    },
     "xaxis_showgrid": False,
-    "yaxis_gridwidth": 1,
+    "yaxis_gridwidth": 2,
     "yaxis_gridcolor": "rgb(128, 128, 128)",
     "yaxis_zerolinecolor": "rgb(128, 128, 128)",
     "yaxis_griddash": "dash",
-    "yaxis_ticklabelstandoff": 8,
+    "yaxis_ticklabelstandoff": 12,
+    "xaxis_ticklabelstandoff": 8,
     "xaxis_title": None,
+    "xaxis_tickfont_size": 14,
+    "yaxis_tickfont_size": 14,
+    "xaxis_title_font_size": 16,
+    "yaxis_title_font_size": 16,
     "margin": {"b": 10, "l": 10, "r": 10, "t": 10},
+    "showlegend": False,
 }
 
 
-def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, feasible_list: list[bool] = None):
+def create_legend_item(label: str, color: str):
+    return dmc.Group(
+        [
+            dmc.Box(h=12, w=12, bg=color, style={"borderRadius": "50%"}, mt="-0.25rem"),
+            dmc.Text(label)
+        ],
+        gap="0.5rem",
+        align="center",
+    )
+
+
+def make_dmc_chart(
+    data_list: list[pd.DataFrame],
+    title_list: list[str] = None,
+    feasible_list: list[bool] = None,
+    breakpoint: Literal["mobile", "desktop"] = "desktop",
+):
     cumulative_data = [
         data[list(SERIES_CUMULATIVE)].cumsum()
         .round(2)
@@ -66,6 +86,12 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
     monthly_y_max = 1.05 * max(x[list(SERIES_MONTHLY)].sum(axis=1).max() for x in data_list)
     text_interval_years = 5
     text_interval_months = text_interval_years * 12
+
+    layout = deepcopy(BASE_LAYOUT)
+    if breakpoint == "mobile":
+        layout["yaxis_fixedrange"] = True
+        layout["xaxis_fixedrange"] = True
+
     return dmc.SimpleGrid(
         [
             dmc.Paper(
@@ -73,7 +99,14 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
                 p="1rem",
                 children=dmc.Stack(
                     [
-                        dmc.Text(title, size="md", fw=600),
+                        dmc.Text(title, size="md", fw=600, c="yellow.6"),
+                        dmc.Group(
+                            [create_legend_item(v["label"], v["color"]) for v in SERIES_CUMULATIVE.values()]
+                            + [create_legend_item(SERIES_OFFSET["label"], SERIES_OFFSET["color"])],
+                            gap="0.5rem 1.25rem",
+                            justify="end",
+                            mb="-0.5rem",
+                        ),
                         dcc.Graph(
                             figure=px.area(
                                 cdata.rename(columns={k: v["label"] for k, v in SERIES_CUMULATIVE.items()}),
@@ -83,13 +116,13 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
                                 height=300,
                             )
                             .update_layout(
-                                BASE_LAYOUT,
-                                yaxis_title="Cumulative ($)",
+                                layout,
+                                yaxis_title_text="Cumulative ($)",
                                 yaxis_autorangeoptions={"include": [0, cumulative_y_max]},
                             )
                             .add_traces(
                                 px.line(data[["offset"]].where(data["interest"] > 0, None).ffill().rename_axis(index="date").reset_index(), x="date", y="offset", color_discrete_sequence=[SERIES_OFFSET["color"]])
-                                .update_traces(name=SERIES_OFFSET["label"], showlegend=True, visible=True if (data["offset"] != 0).any() else "legendonly")
+                                .update_traces(name=SERIES_OFFSET["label"], line_width=3, visible=True if (data["offset"] != 0).any() else "legendonly")
                                 .data
                             )
                             .add_scatter(
@@ -99,7 +132,7 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
                                 showlegend=False,
                                 line=dict(color="rgba(0,0,0,0)"),
                             )
-                            .update_traces(hovertemplate="$%{y:.3s}")
+                            .update_traces(hovertemplate="$%{y:.3s}", line_shape="spline")
                             .update_traces(visible=True if (data["fee"] != 0).any() else "legendonly", selector={"name": "Fees"})
                             .update_traces(visible=True if (data["stamp_duty"] != 0).any() else "legendonly", selector={"name": "Stamp duty"})
                             .add_scatter(
@@ -109,13 +142,19 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
                                 showlegend=False,
                                 mode="text",
                                 textposition="top center",
-                                textfont=dict(size=12, color="#888"),
+                                textfont=dict(size=14, color="#888"),
                                 hoverinfo="skip",
                             )
                             ,
                             responsive=True,
                             style={"height": 300},
                             config={"displayModeBar": False},
+                        ),
+                        dmc.Group(
+                            [create_legend_item(v["label"], v["color"]) for v in SERIES_MONTHLY.values()],
+                            gap="0.5rem 1.25rem",
+                            justify="end",
+                            mb="-0.5rem",
                         ),
                         dcc.Graph(
                             figure=px.area(
@@ -126,8 +165,8 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
                                 height=300,
                             )
                             .update_layout(
-                                BASE_LAYOUT,
-                                yaxis_title="Monthly ($)",
+                                layout,
+                                yaxis_title_text="Monthly ($)",
                                 yaxis_autorangeoptions={"include": [0, monthly_y_max]},
                             )
                             .add_scatter(
@@ -137,7 +176,7 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
                                 showlegend=False,
                                 line=dict(color="rgba(0,0,0,0)"),
                             )
-                            .update_traces(hovertemplate="$%{y:.3s}")
+                            .update_traces(hovertemplate="$%{y:.3s}", line_shape="hvh")
                             ,
                             responsive=True,
                             style={"height": 300},
@@ -151,13 +190,12 @@ def make_dmc_chart(data_list: list[pd.DataFrame], title_list: list[str] = None, 
             for data, cdata, title in zip(data_list, cumulative_data, title_list)
         ],
         cols={"base": 1, "lg": len(data_list)},
-        mt="1rem",
         spacing="lg",
     )
 px.line
 
 def make_comparison_figure(  # pylint: disable = too-many-locals
-    data_list: List[pd.DataFrame], title_list: List[str] = None, feasible_list: List[bool] = None
+    data_list: list[pd.DataFrame], title_list: list[str] = None, feasible_list: list[bool] = None
 ) -> go.Figure:
     """Create a figure comparing several offers
 

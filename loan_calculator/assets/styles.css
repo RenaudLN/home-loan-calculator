@@ -71,10 +71,14 @@ body[data-theme="dark"] {
 .mantine-Tabs-list {
     position: sticky;
     top: 0;
-    background: #F8F8F9;
     z-index: 10;
+    padding-top: 1rem;
+    margin-top: -1rem;
 }
-[data-mantine-color-scheme="dark"] .mantine-Tabs-list {
+.bg-sticky {
+    background: #F8F8F9;
+}
+[data-mantine-color-scheme="dark"] .bg-sticky {
     background: #2B2B2F;
 }
 
@@ -91,21 +95,31 @@ body[data-theme="dark"] {
     }
 }
 
+.hoverlayer .legend .bg {
+    rx: 6px;
+    filter: drop-shadow( 1px 1px 4px rgba(0, 0, 0, 1));
+}
+.scatter .textpoint text {
+    transform: translate(0, -5px);
+}
+
 [data-mantine-color-scheme="dark"] {
     .xtick text,
     .ytick text,
     .legend text,
     .g-xtitle text,
-    .g-ytitle text {
-        fill: #EEEEEE !important;
+    .g-ytitle text,
+    .scatter .textpoint text {
+        fill: #AAAAAA !important;
     }
 
-    .scatter .textpoint text {
-        fill: #CCCCCC !important;
+    .hoverlayer .legend text {
+        fill: #FFFFFF !important;
     }
 
     .xgrid, .ygrid {
-        stroke: #888888 !important
+        stroke: #555555 !important;
+        stroke-dasharray: 5px 5px !important;
     }
 }
 
@@ -114,17 +128,16 @@ body[data-theme="dark"] {
     .ytick text,
     .legend text,
     .g-xtitle text,
-    .g-ytitle text {
-        fill: #333333 !important;
-    }
+    .g-ytitle text,
     .scatter .textpoint text {
-        fill: #555555 !important;
+        fill: #888888 !important;
     }
     .hoverlayer .legend text {
         fill: #FFFFFF !important;
     }
 
     .xgrid, .ygrid {
-        stroke: #AAAAAA !important
+        stroke: #AAAAAA !important;
+        stroke-dasharray: 5px 5px !important;
     }
 }

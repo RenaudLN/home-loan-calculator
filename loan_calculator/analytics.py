@@ -158,7 +158,10 @@ def calculate_repayments(  # pylint: disable = too-many-arguments, too-many-loca
 @lru_cache
 def read_historical_rates() -> pd.DataFrame:
     """Read the historical rates"""
-    return pd.read_html("https://www.rba.gov.au/statistics/cash-rate#datatable")[0]
+    try:
+        return pd.read_html("https://www.rba.gov.au/statistics/cash-rate#datatable")[0]
+    except Exception:
+        return pd.read_csv("loan_calculator/assets/historical_rates.csv")
 
 def get_monthly_rate_series(
     *,

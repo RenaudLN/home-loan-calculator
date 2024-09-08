@@ -1,25 +1,6 @@
 import dash_mantine_components as dmc
 import pandas as pd
-from dash import dcc, html
-from dash_iconify import DashIconify
-
-
-def number_input(
-    *,
-    id: str,  # pylint: disable = redefined-builtin
-    label: str,
-    description: str = None,
-    **kwargs,
-):
-    """Re-build dmc NumberInput but with possible persistence"""
-    return html.Div(
-        [dmc.Text(label, style={"marginBottom": 4, "fontSize": "0.875rem"})]
-        + [dmc.Text(description, style={"marginBottom": 4, "marginTop": -4, "fontSize": "0.75rem"}, c="gray")]
-        * bool(description)
-        + [
-            dcc.Input(type="number", id=id, **kwargs),
-        ],
-    )
+from dash import dcc
 
 
 def table(df: pd.DataFrame, truncate: int = None, **kwargs) -> dmc.Table:
@@ -57,61 +38,13 @@ def table(df: pd.DataFrame, truncate: int = None, **kwargs) -> dmc.Table:
     )
 
 
-def timeline_input_item(  # pylint: disable = too-many-arguments
-    date_id: dict,
-    value_id: dict,
-    delete_id: dict,
-    date: str = None,
-    value: float = None,
-    value_placeholder: str = None,
-    with_trend_bullet: bool = False,
-):
-    """Timeline item with inputs for date and value"""
-    bullet = None
-    if with_trend_bullet and value is not None:
-        if value > 0:
-            bullet = DashIconify(icon="carbon:caret-up", color="red", height=20)
-        elif value < 0:
-            bullet = DashIconify(icon="carbon:caret-down", color="lime", height=20)
-        else:
-            bullet = DashIconify(icon="carbon:subtract", color="blue", height=20)
+class LoadingOverlay(dcc.Loading):
+    """A loading overlay component."""
 
-    return dmc.TimelineItem(
-        html.Div(
-            [
-                html.Div(
-                    [
-                        dmc.DateInput(
-                            placeholder="Date",
-                            value=date,
-                            id=date_id,
-                            size="xs",
-                            clearable=False,
-                        ),
-                        dmc.Space(h="xs"),
-                        dcc.Input(
-                            type="number",
-                            placeholder=value_placeholder,
-                            debounce=True,
-                            value=value,
-                            id=value_id,
-                            className="xs",
-                        ),
-                    ],
-                    style={"flex": "1"},
-                ),
-                html.Div(
-                    dmc.Button(
-                        DashIconify(icon="carbon:close"),
-                        size="compact-md",
-                        variant="subtle",
-                        color="red",
-                        style={"padding": "0 4px"},
-                        id=delete_id,
-                    ),
-                ),
-            ],
-            style={"display": "flex", "alignItems": "center", "gap": "0.25rem"},
-        ),
-        bullet=bullet,
-    )
+    def __init__(self, children, **kwargs):
+        super().__init__(
+            children,
+            custom_spinner=dmc.Loader(),
+            delay_show=500,
+            **kwargs,
+        )

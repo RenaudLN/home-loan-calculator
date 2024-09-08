@@ -6,7 +6,7 @@ from dash_pydantic_form import ModelForm
 from pydantic import ValidationError
 
 from loan_calculator import analytics, delete_modal, loan_modal, plots
-from loan_calculator.components import table
+from loan_calculator.components import LoadingOverlay, table
 from loan_calculator.data_models import FutureExpenses, Offer, Project, RatesForecast
 from loan_calculator.shell import ids as shell_ids
 
@@ -24,7 +24,8 @@ class ids:  # pylint: disable = invalid-name
     comparison_wrapper = "offer_comparison_wrapper"
     loans = "loans_store"
     select = "loan_selection"
-
+    #
+    first_10 = "first_10"
 
     @staticmethod
     def edit_offer(name): return {"type": "edit-offer", "name": name}
@@ -46,9 +47,9 @@ def layout():
                         [
                             dmc.TabsTab("My offers", value="my_offers"),
                             dmc.TabsTab("Offer comparison", value="comparison"),
-                        ]
+                        ],
+                        className="bg-sticky",
                     ),
-                    dmc.Space(h="sm"),
                     dmc.TabsPanel(offers_grid(), value="my_offers"),
                     dmc.TabsPanel(offers_comparison(), value="comparison"),
                 ],
@@ -159,9 +160,18 @@ def no_offers_grid_contents():
 def offers_comparison():
     """Content of second tab with results graph"""
     return [
-        dmc.MultiSelect(id=ids.select, persistence=True, value=[], data=[]),
-        dmc.Space(h="md"),
-        html.Div(offers_comparison_empty_content(), id=ids.comparison_wrapper),
+        dmc.Group(
+            [
+                dmc.MultiSelect(id=ids.select, persistence=True, maxValues=2, value=[], data=[], style={"flex": 1}),
+                dmc.Switch("Show first 10 years", id=ids.first_10),
+            ],
+            pos="sticky",
+            top="3.25rem",
+            style={"zIndex": 10},
+            p="1rem 0",
+            className="bg-sticky",
+        ),
+        LoadingOverlay(offers_comparison_empty_content(), id=ids.comparison_wrapper),
     ]
 
 
@@ -260,17 +270,21 @@ def update_offers(loans_data, search, project_data):
 @callback(
     Output(ids.comparison_wrapper, "children"),
     Input(ids.select, "value"),
+    Input(ids.first_10, "checked"),
     Input(ModelForm.ids.main("project", "sidebar"), "data"),
     Input(ModelForm.ids.main("rates", "sidebar"), "data"),
     Input(ModelForm.ids.main("expenses", "sidebar"), "data"),
     State(ids.loans, "data"),
+    State(shell_ids.breakpoints, "widthBreakpoint"),
 )
 def compute_loan(
     loans_names: list[str],
+    first_10: bool,
     project_data: dict,
     rates_change: dict,
     expenses: dict,
     loans_data: dict,
+    breakpoint: str,
 ):
     """Compute the loan results"""
     if not loans_data or not loans_names:
@@ -306,8 +320,12 @@ def compute_loan(
     if not data_list:
         return no_update
 
-    # fig = plots.make_comparison_figure(data_list, title_list, feasible_list)
-    fig = plots.make_dmc_chart(data_list, title_list, feasible_list)
+    fig = plots.make_dmc_chart(
+        [d.iloc[:10 * 12] if first_10 else d for d in data_list],
+        title_list,
+        feasible_list,
+        breakpoint,
+    )
 
     table_data = (
         pd.DataFrame(
@@ -343,9 +361,8 @@ def compute_loan(
     )
     return [
         dmc.Paper(table(table_data, striped=True), px="sm", pt="sm"),
-        dmc.Space(h="md"),
+        dmc.Space(h="lg"),
         fig,
-        # dcc.Graph(figure=fig, responsive=True, config={"displayModeBar": False}),
     ]
 
 
