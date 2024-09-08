@@ -6,8 +6,8 @@ class Offer(BaseModel):
 
     name: str = Field(title="Name")
     rate: float = Field(title="Annual interest rate (%)", default=3, ge=0, le=100)
-    borrowed_share: float = Field(title="Borrowed share (%)", default=20, ge=0, le=100)
-    loan_duration: int = Field(title="Loan duration (years)", default=25, ge=1)
+    borrowed_share: float = Field(title="Borrowed share (%)", default=80, ge=0, le=100)
+    loan_duration: float = Field(title="Loan duration (years)", default=25, ge=1)
     yearly_fees: float = Field(title="Yearly fees ($)", default=0, ge=0)
     with_fixed_rate: bool = Field(title="With fixed rate", default=False)
     fixed_rate: float | None = Field(title="Fixed rate (%)", default=None)

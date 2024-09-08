@@ -19,6 +19,7 @@ dependencies = [
     "numba",
     "dash_pydantic_form",
     "pydantic",
+    "lxml",
 ]
 
 [project.optional-dependencies]

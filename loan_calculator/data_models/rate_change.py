@@ -14,6 +14,7 @@ class RatesForecast(BaseModel):
 
     changes: list[RateDelta] = Field(
         title="Interest rates projection",
-        description="Note: The rate changes should be relative to the current value.",
+        description="Note: The rate changes should be relative to the current value. "
+        "Historical rate changes are automatically retrieved.",
         default_factory=list,
     )

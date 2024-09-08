@@ -1,4 +1,5 @@
 from datetime import date
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -34,7 +35,7 @@ def compute_loan_timeseries(  # pylint: disable = too-many-arguments, too-many-l
     # Define the loan period
     date_period = pd.date_range(
         project.settlement_date,
-        f"{pd.Timestamp(project.settlement_date).year + offer.loan_duration}-{pd.Timestamp(project.settlement_date).strftime('%m-%d')}",
+        project.settlement_date + pd.Timedelta(days=offer.loan_duration * 365),
         freq="MS",
         inclusive="left",
     )
@@ -154,6 +155,11 @@ def calculate_repayments(  # pylint: disable = too-many-arguments, too-many-loca
     return principal_paid_, offset_, principal_payment_, interest_, fee_, repayment_
 
 
+@lru_cache
+def read_historical_rates() -> pd.DataFrame:
+    """Read the historical rates"""
+    return pd.read_html("https://www.rba.gov.au/statistics/cash-rate#datatable")[0]
+
 def get_monthly_rate_series(
     *,
     date_period: pd.DatetimeIndex,
@@ -166,10 +172,30 @@ def get_monthly_rate_series(
 ):
     """Create the monthly rate time series"""
     # Define the monthly loan rate and fee
+    if settlement_date < date.today():
+        histo = read_historical_rates()
+        past_changes = (
+            histo.rename(columns={"Effective Date": "date", "Change%\xa0points": "value"})
+            .assign(
+                date=lambda df: pd.to_datetime(df["date"], format="%d %b %Y", errors="coerce")
+                + pd.offsets.MonthEnd()
+                + pd.Timedelta(days=1),
+                value=lambda df: pd.to_numeric(df["value"], errors="coerce"),
+            )
+            [["date", "value"]]
+            .dropna(subset=["value"])
+            .query("value != 0")
+            .groupby("date")[["value"]].sum()
+            .assign(value=lambda df: df["value"].cumsum() - df["value"].cumsum().loc[settlement_date:].iat[0])
+            .reset_index()
+            .to_dict("records")
+        )
+        rates_change = RatesForecast(changes=past_changes + rates_change.changes)
+
     rate_pct = pd.Series(rate, index=date_period)
     if rates_change.changes:
         rate_change = (
-            pd.DataFrame([rates_change.model_dump()["changes"]])
+            pd.DataFrame(rates_change.model_dump()["changes"])
             .dropna()
             .assign(date=lambda df: pd.to_datetime(df["date"])).set_index("date")["value"]
         )
