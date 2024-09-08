@@ -102,6 +102,13 @@ body[data-theme="dark"] {
 .scatter .textpoint text {
     transform: translate(0, -5px);
 }
+.hoverlayer .spikeline:nth-child(1) {
+    opacity: 0;
+}
+.hoverlayer .spikeline:nth-child(2) {
+    stroke-dasharray: 5px 5px !important;
+    stroke-width: 2px !important;
+}
 
 [data-mantine-color-scheme="dark"] {
     .xtick text,
@@ -110,16 +117,19 @@ body[data-theme="dark"] {
     .g-xtitle text,
     .g-ytitle text,
     .scatter .textpoint text {
-        fill: #AAAAAA !important;
+        fill: var(--mantine-color-gray-5) !important;
     }
 
     .hoverlayer .legend text {
-        fill: #FFFFFF !important;
+        fill: var(--mantine-color-gray-0) !important;
     }
 
     .xgrid, .ygrid {
-        stroke: #555555 !important;
+        stroke: var(--mantine-color-gray-7) !important;
         stroke-dasharray: 5px 5px !important;
+    }
+    .hoverlayer .spikeline:nth-child(2) {
+        stroke: var(--mantine-color-gray-5) !important;
     }
 }
 
@@ -130,14 +140,17 @@ body[data-theme="dark"] {
     .g-xtitle text,
     .g-ytitle text,
     .scatter .textpoint text {
-        fill: #888888 !important;
+        fill: var(--mantine-color-gray-6) !important;
     }
     .hoverlayer .legend text {
-        fill: #FFFFFF !important;
+        fill: var(--mantine-color-gray-0) !important;
     }
 
     .xgrid, .ygrid {
-        stroke: #AAAAAA !important;
+        stroke: var(--mantine-color-gray-4) !important;
         stroke-dasharray: 5px 5px !important;
+    }
+    .hoverlayer .spikeline:nth-child(2) {
+        stroke: var(--mantine-color-gray-6) !important;
     }
 }
