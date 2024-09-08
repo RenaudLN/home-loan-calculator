@@ -58,7 +58,13 @@ BASE_LAYOUT = {
 }
 
 
-def create_legend_item(label: str, color: str):
+class ids:
+    @staticmethod
+    def chart(metric, name):
+        return {"type": "chart", "metric": metric, "name": name}
+
+
+def create_legend_item(label: str, color: str, active: bool = True):
     return dmc.Group(
         [
             dmc.Box(h=12, w=12, bg=color, style={"borderRadius": "50%"}, mt="-0.25rem"),
@@ -66,6 +72,7 @@ def create_legend_item(label: str, color: str):
         ],
         gap="0.5rem",
         align="center",
+        opacity=1 if active else 0.33,
     )
 
 
@@ -101,8 +108,8 @@ def make_dmc_chart(
                     [
                         dmc.Text(title, size="md", fw=600, c="yellow.6"),
                         dmc.Group(
-                            [create_legend_item(v["label"], v["color"]) for v in SERIES_CUMULATIVE.values()]
-                            + [create_legend_item(SERIES_OFFSET["label"], SERIES_OFFSET["color"])],
+                            [create_legend_item(v["label"], v["color"], (data[k] != 0).any()) for k, v in SERIES_CUMULATIVE.items()]
+                            + [create_legend_item(SERIES_OFFSET["label"], SERIES_OFFSET["color"], (data["offset"] != 0).any())],
                             gap="0.5rem 1.25rem",
                             justify="end",
                             mb="-0.5rem",
@@ -122,7 +129,7 @@ def make_dmc_chart(
                             )
                             .add_traces(
                                 px.line(data[["offset"]].where(data["interest"] > 0, None).ffill().rename_axis(index="date").reset_index(), x="date", y="offset", color_discrete_sequence=[SERIES_OFFSET["color"]])
-                                .update_traces(name=SERIES_OFFSET["label"], line_width=3, visible=True if (data["offset"] != 0).any() else "legendonly")
+                                .update_traces(name=SERIES_OFFSET["label"], line_width=3, visible=(data["offset"] != 0).any())
                                 .data
                             )
                             .add_scatter(
@@ -133,8 +140,8 @@ def make_dmc_chart(
                                 line=dict(color="rgba(0,0,0,0)"),
                             )
                             .update_traces(hovertemplate="$%{y:.3s}", line_shape="spline")
-                            .update_traces(visible=True if (data["fee"] != 0).any() else "legendonly", selector={"name": "Fees"})
-                            .update_traces(visible=True if (data["stamp_duty"] != 0).any() else "legendonly", selector={"name": "Stamp duty"})
+                            .update_traces(visible=(data["fee"] != 0).any(), selector={"name": "Fees"})
+                            .update_traces(visible=(data["stamp_duty"] != 0).any(), selector={"name": "Stamp duty"})
                             .add_scatter(
                                 x=cdata.iloc[text_interval_months - 1 :: text_interval_months]["date"],
                                 y=cdata.drop(columns="date").sum(axis=1).iloc[text_interval_months - 1 :: text_interval_months],
@@ -149,6 +156,8 @@ def make_dmc_chart(
                             responsive=True,
                             style={"height": 300},
                             config={"displayModeBar": False},
+                            id=ids.chart("cumulative", title),
+                            clear_on_unhover=True,
                         ),
                         dmc.Group(
                             [create_legend_item(v["label"], v["color"]) for v in SERIES_MONTHLY.values()],
@@ -181,6 +190,8 @@ def make_dmc_chart(
                             responsive=True,
                             style={"height": 300},
                             config={"displayModeBar": False},
+                            id=ids.chart("monthly", title),
+                            clear_on_unhover=True,
                         ),
                     ],
                     style={"flex": 1},

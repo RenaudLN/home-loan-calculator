@@ -1,6 +1,6 @@
 import dash_mantine_components as dmc
 import pandas as pd
-from dash import ALL, Input, Output, State, callback, clientside_callback, ctx, dcc, html, no_update, register_page
+from dash import ALL, MATCH, Input, Output, State, callback, clientside_callback, ctx, dcc, html, no_update, register_page
 from dash_iconify import DashIconify
 from dash_pydantic_form import ModelForm
 from pydantic import ValidationError
@@ -402,3 +402,26 @@ def update_delete_modal_content(delete_trigger):  # pylint: disable = unused-arg
 
     name = ctx.triggered_id["name"]
     return [delete_modal.modal_content(name), f"Delete {name}"]
+
+
+clientside_callback(
+    """(hoverData, ids) => {
+        const t = dash_clientside.callback_context.triggered
+        if (t && t.length > 0) {
+            const tId = JSON.parse(t[0].prop_id.split(".")[0])
+            ids.forEach(id => {
+                if (id.name === tId.name) return
+                const plotId = JSON.stringify(id, Object.keys(id).sort());
+                const plot = document.getElementById(plotId)
+                if (!plot.children[1]) return
+                const xHover = !!hoverData ? new Date(hoverData.points[0].x).getTime() : 0
+                Plotly.Fx.hover(plot.children[1], {xval: xHover, yval:0})
+            })
+        }
+        return dash_clientside.no_updatte
+    }""",
+    Output(plots.ids.chart(MATCH, MATCH), "config"),
+    Input(plots.ids.chart(MATCH, MATCH), "hoverData"),
+    State(plots.ids.chart(MATCH, ALL), "id"),
+    prevent_initial_call=True,
+)
