@@ -448,10 +448,10 @@ clientside_callback(
             const newFigure = {...figure}
             newFigure.data.forEach(trace => {
                 if (trace.name !== id.item && trace.line?.color && trace.name !== "Total") {
-                    trace.fillcolor = toOpacity(trace.line.color, 0.1)
-                    trace.line.color = toOpacity(trace.line.color, 0.5)
+                    trace.fillcolor = toOpacity(trace.line.color, 0.2)
+                    trace.line.color = toOpacity(trace.line.color, 0.4)
                 } else if (trace.name === id.item && trace.name !== "Total") {
-                    trace.fillcolor = toOpacity(trace.line.color, 0.5)
+                    trace.fillcolor = toOpacity(trace.line.color, 0.6)
                     trace.line.color = toOpacity(trace.line.color, 1)
                 }
             })
@@ -462,7 +462,7 @@ clientside_callback(
             const newFigure = {...figure}
             newFigure.data.forEach(trace => {
                 if (trace.line?.color && trace.name !== "Total") {
-                    trace.fillcolor = toOpacity(trace.line.color, 0.5)
+                    trace.fillcolor = toOpacity(trace.line.color, 0.6)
                     trace.line.color = toOpacity(trace.line.color, 1)
                 }
             })

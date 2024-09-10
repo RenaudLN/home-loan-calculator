@@ -18,18 +18,18 @@ COLOR_OFFSET = "rgb(32, 201, 151)"
 
 
 SERIES_CUMULATIVE = {
-    "deposit": {"color": "#12b886", "label": "Deposit"},
-    "stamp_duty": {"color": "#ff922b", "label": "Stamp duty"},
-    "principal_payment": {"color": "#4c6ef5", "label": "Principal"},
-    "interest": {"color": "#be4bdb", "label": "Interest"},
-    "fee": {"color": "#e64980", "label": "Fees"},
+    "deposit": {"color": "rgba(18, 184, 134, 0.6)", "label": "Deposit"},
+    "principal_payment": {"color": "rgba(76, 110, 245, 0.6)", "label": "Principal"},
+    "stamp_duty": {"color": "rgba(250, 176, 5, 0.6)", "label": "Stamp duty"},
+    "interest": {"color": "rgba(190, 75, 219, 0.6)", "label": "Interest"},
+    "fee": {"color": "rgba(230, 73, 128, 0.6)", "label": "Fees"},
 }
 SERIES_MONTHLY = {
-    "principal_payment": {"color": "#4c6ef5", "label": "Principal"},
-    "interest": {"color": "#be4bdb", "label": "Interest"},
-    "fee": {"color": "#e64980", "label": "Fees"},
+    "principal_payment": {"color": "rgba(76, 110, 245, 0.6)", "label": "Principal"},
+    "interest": {"color": "rgba(190, 75, 219, 0.6)", "label": "Interest"},
+    "fee": {"color": "rgba(230, 73, 128, 0.6)", "label": "Fees"},
 }
-SERIES_OFFSET = {"color": "#fab005", "label": "Offset account"}
+SERIES_OFFSET = {"color": "#fd7e14", "label": "Offset account"}
 BASE_LAYOUT = {
     "hovermode": "x unified",
     "hoverlabel": {
@@ -81,6 +81,78 @@ def create_legend_item(label: str, color: str, metric: str, name: str, active: b
     )
 
 
+def make_cumulative_figure(layout: dict, data: pd.DataFrame, cdata: pd.DataFrame, cumulative_y_max: float):
+    fig = (
+        px.area(
+            cdata.rename(columns={k: v["label"] for k, v in SERIES_CUMULATIVE.items()}),
+            x="date",
+            y=[v["label"] for v in SERIES_CUMULATIVE.values()],
+            color_discrete_map={v["label"]: v["color"] for v in SERIES_CUMULATIVE.values()},
+            height=300,
+        )
+        .update_layout(
+            layout,
+            yaxis_title_text="Cumulative ($)",
+            yaxis_autorangeoptions={"include": [0, cumulative_y_max]},
+        )
+        .update_traces(line_width=0)
+        .add_traces(
+            px.line(
+                data[["offset"]].where(data["interest"] > 0, None).ffill().rename_axis(index="date").reset_index(),
+                x="date",
+                y="offset",
+                color_discrete_sequence=[SERIES_OFFSET["color"]],
+            )
+            .update_traces(name=SERIES_OFFSET["label"], line_width=3, visible=(data["offset"] != 0).any())
+            .data
+        )
+        .add_scatter(
+            x=cdata["date"],
+            y=cdata.drop(columns="date").sum(axis=1),
+            name="Total",
+            showlegend=False,
+            line=dict(color="rgba(0,0,0,0)"),
+        )
+        .update_traces(hovertemplate="$%{y:.3s}")
+    )
+
+    for k, v in SERIES_CUMULATIVE.items():
+        fig.update_traces(fillcolor=v["color"], visible=(data[k] != 0).any(), selector={"name": v["label"]})
+
+    return fig
+
+
+def make_monthly_figure(layout: dict, data: pd.DataFrame, monthly_y_max: float):
+
+    fig = (
+        px.area(
+            data[list(SERIES_MONTHLY)].rename_axis(index="date").reset_index().rename(columns={k: v["label"] for k, v in SERIES_MONTHLY.items()}),
+            x="date",
+            y=[v["label"] for v in SERIES_MONTHLY.values()],
+            color_discrete_map={v["label"]: v["color"] for v in SERIES_MONTHLY.values()},
+            height=300,
+        )
+        .update_layout(
+            layout,
+            yaxis_title_text="Monthly ($)",
+            yaxis_autorangeoptions={"include": [0, monthly_y_max]},
+        )
+        .add_scatter(
+            x=data.index,
+            y=data[list(SERIES_MONTHLY)].sum(axis=1),
+            name="Total",
+            showlegend=False,
+            line=dict(color="rgba(0,0,0,0)"),
+        )
+        .update_traces(hovertemplate="$%{y:.3s}", line_width=0)
+    )
+
+    for k, v in SERIES_MONTHLY.items():
+        fig.update_traces(fillcolor=v["color"], visible=(data[k] != 0).any(), selector={"name": v["label"]})
+
+    return fig
+
+
 def make_dmc_chart(
     data_list: list[pd.DataFrame],
     title_list: list[str] = None,
@@ -96,8 +168,6 @@ def make_dmc_chart(
     ]
     cumulative_y_max = 1.1 * max(x.drop(columns="date").sum(axis=1).max() for x in cumulative_data)
     monthly_y_max = 1.05 * max(x[list(SERIES_MONTHLY)].sum(axis=1).max() for x in data_list)
-    text_interval_years = 5
-    text_interval_months = text_interval_years * 12
 
     layout = deepcopy(BASE_LAYOUT)
     if breakpoint == "mobile":
@@ -137,44 +207,7 @@ def make_dmc_chart(
                             mb="-0.5rem",
                         ),
                         dcc.Graph(
-                            figure=px.area(
-                                cdata.rename(columns={k: v["label"] for k, v in SERIES_CUMULATIVE.items()}),
-                                x="date",
-                                y=[v["label"] for v in SERIES_CUMULATIVE.values()],
-                                color_discrete_map={v["label"]: v["color"] for v in SERIES_CUMULATIVE.values()},
-                                height=300,
-                            )
-                            .update_layout(
-                                layout,
-                                yaxis_title_text="Cumulative ($)",
-                                yaxis_autorangeoptions={"include": [0, cumulative_y_max]},
-                            )
-                            .add_traces(
-                                px.line(data[["offset"]].where(data["interest"] > 0, None).ffill().rename_axis(index="date").reset_index(), x="date", y="offset", color_discrete_sequence=[SERIES_OFFSET["color"]])
-                                .update_traces(name=SERIES_OFFSET["label"], line_width=3, visible=(data["offset"] != 0).any())
-                                .data
-                            )
-                            .add_scatter(
-                                x=cdata["date"],
-                                y=cdata.drop(columns="date").sum(axis=1),
-                                name="Total",
-                                showlegend=False,
-                                line=dict(color="rgba(0,0,0,0)"),
-                            )
-                            .update_traces(hovertemplate="$%{y:.3s}", line_shape="spline")
-                            .update_traces(visible=(data["fee"] != 0).any(), selector={"name": "Fees"})
-                            .update_traces(visible=(data["stamp_duty"] != 0).any(), selector={"name": "Stamp duty"})
-                            .add_scatter(
-                                x=cdata.iloc[text_interval_months - 1 :: text_interval_months]["date"],
-                                y=cdata.drop(columns="date").sum(axis=1).iloc[text_interval_months - 1 :: text_interval_months],
-                                texttemplate="%{y:.3s}",
-                                showlegend=False,
-                                mode="text",
-                                textposition="top center",
-                                textfont=dict(size=14, color="#888"),
-                                hoverinfo="skip",
-                            )
-                            ,
+                            figure=make_cumulative_figure(layout, data, cdata, cumulative_y_max),
                             responsive=True,
                             style={"height": 300},
                             config={"displayModeBar": False},
@@ -196,27 +229,7 @@ def make_dmc_chart(
                             mb="-0.5rem",
                         ),
                         dcc.Graph(
-                            figure=px.area(
-                                data[list(SERIES_MONTHLY)].rename_axis(index="date").reset_index().rename(columns={k: v["label"] for k, v in SERIES_MONTHLY.items()}),
-                                x="date",
-                                y=[v["label"] for v in SERIES_MONTHLY.values()],
-                                color_discrete_map={v["label"]: v["color"] for v in SERIES_MONTHLY.values()},
-                                height=300,
-                            )
-                            .update_layout(
-                                layout,
-                                yaxis_title_text="Monthly ($)",
-                                yaxis_autorangeoptions={"include": [0, monthly_y_max]},
-                            )
-                            .add_scatter(
-                                x=data.index,
-                                y=data[list(SERIES_MONTHLY)].sum(axis=1),
-                                name="Total",
-                                showlegend=False,
-                                line=dict(color="rgba(0,0,0,0)"),
-                            )
-                            .update_traces(hovertemplate="$%{y:.3s}")
-                            ,
+                            figure=make_monthly_figure(layout, data, monthly_y_max),
                             responsive=True,
                             style={"height": 300},
                             config={"displayModeBar": False},
